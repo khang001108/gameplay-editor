@@ -1,19 +1,26 @@
 import { useRef } from "react";
-import { useGraphStore } from "../../state/graphStore";
 import { downloadJson } from "../../utils/download";
+import { ModeTabs } from "./ModeTabs";
+import type { EditorMode } from "../../state/editorMode";
 
-export function TopBar() {
-  const graphName = useGraphStore((s) => s.graphName);
-  const setGraphName = useGraphStore((s) => s.setGraphName);
-  const exportDocument = useGraphStore((s) => s.exportDocument);
-  const loadDocument = useGraphStore((s) => s.loadDocument);
-  const newGraph = useGraphStore((s) => s.newGraph);
+interface TopBarProps {
+  mode: EditorMode;
+  onModeChange: (mode: EditorMode) => void;
+  name: string;
+  onNameChange: (name: string) => void;
+  onNew: () => void;
+  onLoadJson: (parsed: unknown) => void;
+  exportData: () => unknown;
+  exportFilePrefix: string;
+}
+
+export function TopBar({ mode, onModeChange, name, onNameChange, onNew, onLoadJson, exportData, exportFilePrefix }: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
-    const doc = exportDocument();
-    const safeName = doc.name.trim().replace(/\s+/g, "_").toLowerCase() || "gameplay_graph";
-    downloadJson(`${safeName}.json`, doc);
+    const data = exportData();
+    const safeName = name.trim().replace(/\s+/g, "_").toLowerCase() || exportFilePrefix;
+    downloadJson(`${safeName}.json`, data);
   };
 
   const handleLoadClick = () => fileInputRef.current?.click();
@@ -25,27 +32,29 @@ export function TopBar() {
     const text = await file.text();
     try {
       const parsed = JSON.parse(text);
-      loadDocument(parsed);
+      onLoadJson(parsed);
     } catch {
       window.alert("Không đọc được file — không phải JSON hợp lệ.");
     }
   };
 
   const handleNew = () => {
-    if (window.confirm("Tạo graph mới? Nội dung chưa lưu sẽ mất.")) newGraph();
+    if (window.confirm("Tạo mới? Nội dung chưa lưu sẽ mất.")) onNew();
   };
 
   return (
     <header className="topbar">
       <div className="topbar__brand">
         <span className="topbar__logo">⛭</span>
-        <span className="topbar__title">Gameplay Editor</span>
+        <span className="topbar__title">Game Editor</span>
       </div>
+
+      <ModeTabs active={mode} onChange={onModeChange} />
 
       <input
         className="topbar__name-input"
-        value={graphName}
-        onChange={(e) => setGraphName(e.target.value)}
+        value={name}
+        onChange={(e) => onNameChange(e.target.value)}
         spellCheck={false}
       />
 

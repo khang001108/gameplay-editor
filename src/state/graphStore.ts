@@ -35,7 +35,7 @@ interface GraphState {
   setGraphName: (name: string) => void;
 
   exportDocument: () => GraphDocument;
-  loadDocument: (doc: GraphDocument) => void;
+  loadDocument: (doc: unknown) => void;
   newGraph: () => void;
 }
 
