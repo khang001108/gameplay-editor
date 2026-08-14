@@ -226,12 +226,42 @@
 
 /* ── Sidebar ──────────────────────────────────────────────────── */
 .sidebar {
-  width: 240px;
+  width: var(--sidebar-width, 240px);
   flex-shrink: 0;
   background: var(--bg-panel);
   border-right: 1px solid var(--border);
   overflow-y: auto;
   padding: 12px 10px 24px;
+}
+
+.sidebar-resizer {
+  width: 6px;
+  margin-left: -3px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  position: relative;
+  z-index: 5;
+  touch-action: none;
+}
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.sidebar-resizer:hover::after {
+  background: var(--accent-condition);
+}
+body.resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
+}
+body.resizing-sidebar .sidebar-resizer::after {
+  background: var(--accent-condition);
 }
 .sidebar__hint {
   font-size: 11px;
@@ -1159,6 +1189,9 @@ select.field-input {
     width: 100%;
     height: 100%;
     box-shadow: 0 0 28px rgba(0, 0, 0, 0.5);
+  }
+  .sidebar-resizer {
+    display: none;
   }
 
   .drawer-backdrop {
