@@ -84,6 +84,16 @@ interface MapState {
     spacingX: number,
     spacingY: number
   ) => Promise<void>;
+  /** import nhiều ảnh cùng lúc (vd chọn cả 1 folder) — mỗi ảnh thành 1 tileset riêng, chung 1 mốc undo */
+  importTilesetFiles: (
+    files: File[],
+    tileWidth: number,
+    tileHeight: number,
+    marginX: number,
+    marginY: number,
+    spacingX: number,
+    spacingY: number
+  ) => Promise<void>;
   removeTileset: (id: string) => void;
   setTileAnimationFrames: (tilesetId: string, baseTileIndex: number, frames: TileAnimationFrame[]) => void;
   /** đổi animation cho nhiều ô cùng lúc, checkpoint đúng 1 lần — dùng để giữ đồng bộ khi 1 block
@@ -249,28 +259,39 @@ export const useMapStore = create<MapState>((set, get) => ({
   setTileSize: (tileSize) => set({ tileSize: Math.max(4, Math.round(tileSize)) }),
 
   importTileset: async (file, tileWidth, tileHeight, marginX, marginY, spacingX, spacingY) => {
+    await get().importTilesetFiles([file], tileWidth, tileHeight, marginX, marginY, spacingX, spacingY);
+  },
+
+  importTilesetFiles: async (files, tileWidth, tileHeight, marginX, marginY, spacingX, spacingY) => {
+    if (files.length === 0) return;
+    const built = await Promise.all(
+      files.map(async (file) => {
+        const dataUrl = await readFileAsDataURL(file);
+        const img = await loadImage(dataUrl);
+        const columns = Math.max(1, Math.floor((img.width - marginX + spacingX) / (tileWidth + spacingX)));
+        const rows = Math.max(1, Math.floor((img.height - marginY + spacingY) / (tileHeight + spacingY)));
+        const tileset: TilesetDef = {
+          id: makeId("tileset"),
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          imageDataUrl: dataUrl,
+          tileWidth,
+          tileHeight,
+          marginX,
+          marginY,
+          spacingX,
+          spacingY,
+          columns,
+          rows,
+          animations: {},
+        };
+        return tileset;
+      })
+    );
     get().checkpoint();
-    const dataUrl = await readFileAsDataURL(file);
-    const img = await loadImage(dataUrl);
-    const columns = Math.max(1, Math.floor((img.width - marginX + spacingX) / (tileWidth + spacingX)));
-    const rows = Math.max(1, Math.floor((img.height - marginY + spacingY) / (tileHeight + spacingY)));
-    const tileset: TilesetDef = {
-      id: makeId("tileset"),
-      name: file.name.replace(/\.[^/.]+$/, ""),
-      imageDataUrl: dataUrl,
-      tileWidth,
-      tileHeight,
-      marginX,
-      marginY,
-      spacingX,
-      spacingY,
-      columns,
-      rows,
-      animations: {},
-    };
+    const last = built[built.length - 1];
     set({
-      tilesets: [...get().tilesets, tileset],
-      activeStamp: { tilesetId: tileset.id, width: 1, height: 1, tiles: [0] },
+      tilesets: [...get().tilesets, ...built],
+      activeStamp: { tilesetId: last.id, width: 1, height: 1, tiles: [0] },
       activeTool: "terrain",
     });
   },

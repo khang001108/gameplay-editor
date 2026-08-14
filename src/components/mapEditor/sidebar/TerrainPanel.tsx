@@ -21,16 +21,12 @@ function sameTiles(a: number[] | undefined, b: number[]): boolean {
 export function TerrainPanel() {
   const tilesets = useMapStore((s) => s.tilesets);
   const activeStamp = useMapStore((s) => s.activeStamp);
-  const activeTool = useMapStore((s) => s.activeTool);
-  const eraserSize = useMapStore((s) => s.eraserSize);
   const importTileset = useMapStore((s) => s.importTileset);
+  const importTilesetFiles = useMapStore((s) => s.importTilesetFiles);
   const removeTileset = useMapStore((s) => s.removeTileset);
   const setActiveStamp = useMapStore((s) => s.setActiveStamp);
-  const setActiveTool = useMapStore((s) => s.setActiveTool);
-  const setEraserSize = useMapStore((s) => s.setEraserSize);
   const setTileAnimationFrames = useMapStore((s) => s.setTileAnimationFrames);
   const setTileAnimationFramesForMany = useMapStore((s) => s.setTileAnimationFramesForMany);
-  const fillLayer = useMapStore((s) => s.fillLayer);
 
   const images = useTilesetImages(tilesets);
 
@@ -42,6 +38,13 @@ export function TerrainPanel() {
   const [spacingY, setSpacingY] = useState(0);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // webkitdirectory/directory không có trong kiểu InputHTMLAttributes chuẩn của React — gắn trực tiếp qua DOM
+    folderInputRef.current?.setAttribute("webkitdirectory", "");
+    folderInputRef.current?.setAttribute("directory", "");
+  }, []);
 
   // kéo chuột trên bảng tile để chọn 1 vùng nhiều ô (giống Tiled) — dùng chung cho cả chọn stamp
   // để vẽ VÀ chọn nhiều ô liền lúc thêm animation frame (xem dragPurpose)
@@ -67,6 +70,24 @@ export function TerrainPanel() {
       await importTileset(file, Math.max(1, tileW), Math.max(1, tileH), Math.max(0, marginX), Math.max(0, marginY), Math.max(0, spacingX), Math.max(0, spacingY));
     } catch {
       window.alert("Không đọc được ảnh tileset — thử lại với file PNG/JPG khác.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // e.target.files là FileList "sống" — phải đọc ra mảng TRƯỚC khi clear value, nếu không clear sẽ làm rỗng luôn cả list này
+    const imageFiles = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+    e.target.value = "";
+    if (imageFiles.length === 0) {
+      window.alert("Không tìm thấy ảnh nào trong folder đã chọn.");
+      return;
+    }
+    setImporting(true);
+    try {
+      await importTilesetFiles(imageFiles, Math.max(1, tileW), Math.max(1, tileH), Math.max(0, marginX), Math.max(0, marginY), Math.max(0, spacingX), Math.max(0, spacingY));
+    } catch {
+      window.alert("Có lỗi khi đọc ảnh trong folder — kiểm tra lại và thử lại.");
     } finally {
       setImporting(false);
     }
@@ -210,10 +231,16 @@ export function TerrainPanel() {
         Margin = khoảng trắng viền ngoài ảnh trước ô đầu tiên. Spacing = khoảng cách giữa 2 ô. Để 0 nếu tileset không có viền/khoảng cách.
       </p>
 
-      <button className="btn" disabled={importing} onClick={() => fileInputRef.current?.click()}>
-        {importing ? "Đang tải…" : "+ Import ảnh tileset"}
-      </button>
+      <div className="map-toolrow">
+        <button className="btn btn--sm" disabled={importing} onClick={() => fileInputRef.current?.click()}>
+          {importing ? "Đang tải…" : "+ Import ảnh"}
+        </button>
+        <button className="btn btn--sm" disabled={importing} onClick={() => folderInputRef.current?.click()}>
+          {importing ? "Đang tải…" : "+ Import cả folder"}
+        </button>
+      </div>
       <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleFile} />
+      <input ref={folderInputRef} type="file" accept="image/*" multiple hidden onChange={handleFolder} />
 
       {tilesets.length === 0 && <p className="inspector__empty inspector__empty--inline">Chưa có tileset nào.</p>}
 
@@ -264,37 +291,6 @@ export function TerrainPanel() {
           </div>
         );
       })}
-
-      <div className="map-toolrow">
-        <button className={`btn${activeTool === "terrain" ? " btn--primary" : ""}`} disabled={!activeStamp} onClick={() => setActiveTool("terrain")}>
-          Vẽ {activeStamp ? `(${activeStamp.width}×${activeStamp.height})` : ""}
-        </button>
-        <button className={`btn${activeTool === "erase" ? " btn--primary" : ""}`} onClick={() => setActiveTool("erase")}>
-          Xoá (Eraser)
-        </button>
-      </div>
-
-      <div className="map-toolrow">
-        <button
-          className="btn btn--sm"
-          disabled={!activeStamp}
-          title="Đổ đầy toàn bộ layer đang chọn bằng tile/vùng đang chọn"
-          onClick={() => fillLayer()}
-        >
-          🪣 Tô hết layer
-        </button>
-      </div>
-
-      {activeTool === "erase" && (
-        <div className="map-toolrow">
-          <span className="map-toolrow__label">Cỡ tẩy</span>
-          {([1, 2, 3] as const).map((n) => (
-            <button key={n} className={`btn btn--sm${eraserSize === n ? " btn--primary" : ""}`} onClick={() => setEraserSize(n)}>
-              {n}×{n}
-            </button>
-          ))}
-        </div>
-      )}
 
       {activeStamp && (
         <div className="map-toolrow">

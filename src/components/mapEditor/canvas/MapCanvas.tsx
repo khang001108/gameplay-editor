@@ -63,10 +63,14 @@ export function MapCanvas() {
   const select = useMapStore((s) => s.select);
   const removeSelected = useMapStore((s) => s.removeSelected);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
+  const setEraserSize = useMapStore((s) => s.setEraserSize);
+  const fillLayer = useMapStore((s) => s.fillLayer);
   const cancelPlacement = useMapStore((s) => s.cancelPlacement);
   const checkpoint = useMapStore((s) => s.checkpoint);
   const undo = useMapStore((s) => s.undo);
   const redo = useMapStore((s) => s.redo);
+  const canUndo = useMapStore((s) => s.past.length > 0);
+  const canRedo = useMapStore((s) => s.future.length > 0);
   const theme = useThemeStore((s) => s.theme);
 
   const [zoom, setZoom] = useState(1);
@@ -147,6 +151,12 @@ export function MapCanvas() {
   const activePointersRef = useRef<Map<number, Point>>(new Map());
   const lastPinchRef = useRef<{ dist: number; mid: Point } | null>(null);
 
+  // kéo để xem (pan) khi đang ở tool "select" (chế độ rảnh) — chỉ thật sự pan nếu kéo quá 1 ngưỡng nhỏ,
+  // để click đơn (không kéo) vẫn bỏ chọn object/area như cũ.
+  const PAN_THRESHOLD = 4;
+  const panRef = useRef<{ pointerId: number; startX: number; startY: number; scrollLeft: number; scrollTop: number; dragging: boolean } | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
+
   const stopSingleGesture = () => {
     isPaintingRef.current = false;
     drawStartRef.current = null;
@@ -189,6 +199,16 @@ export function MapCanvas() {
       eraseCell(cell.x, cell.y);
       return;
     }
+
+    // tool "select" = chế độ rảnh: bấm vào canvas trống vừa bỏ chọn vừa có thể kéo để pan xem map
+    panRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      scrollLeft: scrollRef.current?.scrollLeft ?? 0,
+      scrollTop: scrollRef.current?.scrollTop ?? 0,
+      dragging: false,
+    };
     select(null);
   };
 
@@ -211,6 +231,21 @@ export function MapCanvas() {
         }
       }
       lastPinchRef.current = { dist, mid };
+      return;
+    }
+
+    const pan = panRef.current;
+    if (pan && pan.pointerId === e.pointerId) {
+      const dx = e.clientX - pan.startX;
+      const dy = e.clientY - pan.startY;
+      if (!pan.dragging && Math.hypot(dx, dy) > PAN_THRESHOLD) {
+        pan.dragging = true;
+        setIsPanning(true);
+      }
+      if (pan.dragging && scrollRef.current) {
+        scrollRef.current.scrollLeft = pan.scrollLeft - dx;
+        scrollRef.current.scrollTop = pan.scrollTop - dy;
+      }
       return;
     }
 
@@ -238,6 +273,10 @@ export function MapCanvas() {
   const handlePointerUp = (e: React.PointerEvent) => {
     activePointersRef.current.delete(e.pointerId);
     if (activePointersRef.current.size < 2) lastPinchRef.current = null;
+    if (panRef.current?.pointerId === e.pointerId) {
+      panRef.current = null;
+      setIsPanning(false);
+    }
     if (activePointersRef.current.size > 0) return;
 
     isPaintingRef.current = false;
@@ -257,6 +296,10 @@ export function MapCanvas() {
   const handlePointerCancel = (e: React.PointerEvent) => {
     activePointersRef.current.delete(e.pointerId);
     lastPinchRef.current = null;
+    if (panRef.current?.pointerId === e.pointerId) {
+      panRef.current = null;
+      setIsPanning(false);
+    }
     setHoverCell(null);
     stopSingleGesture();
   };
@@ -323,18 +366,76 @@ export function MapCanvas() {
   return (
     <div className="map-canvas">
       <div className="map-canvas__toolbar">
-        <span>{TOOL_LABEL[activeTool]}</span>
-        {activeTool !== "select" && (
+        <div className="map-canvas__tools">
           <button
-            className="btn btn--sm"
+            className={`btn btn--icon${activeTool === "select" ? " btn--primary" : ""}`}
+            title="Chọn / Kéo để xem (Esc)"
             onClick={() => {
               cancelPlacement();
               setActiveTool("select");
             }}
           >
-            Xong (Esc)
+            ✋
           </button>
+          <button
+            className={`btn btn--icon${activeTool === "terrain" ? " btn--primary" : ""}`}
+            title={activeStamp ? "Vẽ terrain" : "Vẽ terrain (chọn 1 tile trong bảng bên trái trước)"}
+            disabled={!activeStamp}
+            onClick={() => setActiveTool("terrain")}
+          >
+            ✏️
+          </button>
+          <button
+            className={`btn btn--icon${activeTool === "erase" ? " btn--primary" : ""}`}
+            title="Xoá terrain (Eraser)"
+            onClick={() => setActiveTool("erase")}
+          >
+            🧹
+          </button>
+          <button className="btn btn--icon" title="Tô hết layer bằng tile đang chọn" disabled={!activeStamp} onClick={() => fillLayer()}>
+            🪣
+          </button>
+
+          {activeTool === "erase" && (
+            <div className="map-canvas__eraser-size">
+              {([1, 2, 3] as const).map((n) => (
+                <button
+                  key={n}
+                  className={`btn btn--sm${eraserSize === n ? " btn--primary" : ""}`}
+                  title={`Cỡ tẩy ${n}×${n}`}
+                  onClick={() => setEraserSize(n)}
+                >
+                  {n}×{n}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <span className="topbar__sep" />
+
+          <button className="btn btn--icon" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={undo}>
+            ↶
+          </button>
+          <button className="btn btn--icon" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={redo}>
+            ↷
+          </button>
+        </div>
+
+        {!["select", "terrain", "erase"].includes(activeTool) && (
+          <>
+            <span className="map-canvas__hint">{TOOL_LABEL[activeTool]}</span>
+            <button
+              className="btn btn--sm"
+              onClick={() => {
+                cancelPlacement();
+                setActiveTool("select");
+              }}
+            >
+              Xong (Esc)
+            </button>
+          </>
         )}
+
         <div className="map-canvas__zoom">
           <button className="btn btn--icon" title="Thu nhỏ" onClick={() => setZoom((z) => clamp(z / 1.2, MIN_ZOOM, MAX_ZOOM))}>
             −
@@ -351,7 +452,7 @@ export function MapCanvas() {
       <div className="map-canvas__scroll" ref={scrollRef} onWheel={handleWheel}>
         <div
           ref={stageRef}
-          className="map-canvas__stage"
+          className={`map-canvas__stage${activeTool === "select" ? " map-canvas__stage--pan" : ""}${isPanning ? " map-canvas__stage--panning" : ""}`}
           style={{ width: stageWidth, height: stageHeight, touchAction: "none" }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

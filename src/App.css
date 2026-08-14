@@ -1008,6 +1008,20 @@ select.field-input {
   font-size: 11.5px;
   color: var(--text-muted);
 }
+.map-canvas__tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.map-canvas__eraser-size {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 2px;
+}
+.map-canvas__hint {
+  white-space: nowrap;
+}
 .map-canvas__zoom {
   margin-left: auto;
   display: flex;
@@ -1017,6 +1031,11 @@ select.field-input {
 .map-canvas__scroll {
   flex: 1;
   overflow: auto;
+  display: flex;
+  /* "safe" = canh giữa khi map nhỏ hơn khung nhìn, nhưng tự rơi về góc trên-trái (scroll bình thường)
+   * khi map to hơn — tránh lỗi kinh điển của flexbox: phần thừa bị "kẹt" ngoài vùng kéo được. */
+  align-items: safe center;
+  justify-content: safe center;
   background: repeating-conic-gradient(#1a1710 0% 25%, #17140f 0% 50%) 0 0 / 24px 24px;
 }
 :root[data-theme="light"] .map-canvas__scroll {
@@ -1024,7 +1043,14 @@ select.field-input {
 }
 .map-canvas__stage {
   position: relative;
+  flex-shrink: 0;
   cursor: crosshair;
+}
+.map-canvas__stage--pan {
+  cursor: grab;
+}
+.map-canvas__stage--panning {
+  cursor: grabbing;
 }
 .map-canvas__terrain {
   position: absolute;
