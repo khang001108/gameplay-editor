@@ -23,6 +23,7 @@ export function TerrainPanel() {
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setEraserSize = useMapStore((s) => s.setEraserSize);
   const setTileAnimationFrames = useMapStore((s) => s.setTileAnimationFrames);
+  const fillLayer = useMapStore((s) => s.fillLayer);
 
   const images = useTilesetImages(tilesets);
 
@@ -243,6 +244,17 @@ export function TerrainPanel() {
         </button>
         <button className={`btn${activeTool === "erase" ? " btn--primary" : ""}`} onClick={() => setActiveTool("erase")}>
           Xoá (Eraser)
+        </button>
+      </div>
+
+      <div className="map-toolrow">
+        <button
+          className="btn btn--sm"
+          disabled={!activeStamp}
+          title="Đổ đầy toàn bộ layer đang chọn bằng tile/vùng đang chọn"
+          onClick={() => fillLayer()}
+        >
+          🪣 Tô hết layer
         </button>
       </div>
 

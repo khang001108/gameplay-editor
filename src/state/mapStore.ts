@@ -100,6 +100,8 @@ interface MapState {
   setEraserSize: (n: 1 | 2 | 3) => void;
   paintCell: (x: number, y: number) => void;
   eraseCell: (x: number, y: number) => void;
+  /** đổ đầy toàn bộ layer đang chọn bằng activeStamp — nếu stamp nhiều hơn 1 ô thì lặp lại (tile) kín cả layer */
+  fillLayer: () => void;
 
   placeObject: (defType: string, x: number, y: number) => void;
   /** dùng cho 1 thao tác đơn lẻ (vd sửa X/Y trong Inspector) — tự checkpoint */
@@ -385,6 +387,24 @@ export const useMapStore = create<MapState>((set, get) => ({
         const y = cy - half + dy;
         if (x < 0 || y < 0 || x >= width || y >= height) continue;
         cells[y * width + x] = null;
+      }
+    }
+    const nextLayers = layers.slice();
+    nextLayers[layerIndex] = { ...layers[layerIndex], cells };
+    set({ layers: nextLayers });
+  },
+
+  fillLayer: () => {
+    const { activeStamp, width, height, layers, activeLayerId } = get();
+    if (!activeStamp) return;
+    const layerIndex = layers.findIndex((l) => l.id === activeLayerId);
+    if (layerIndex === -1) return;
+    get().checkpoint();
+    const cells: (TerrainCellRef | null)[] = new Array(width * height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const tileIndex = activeStamp.tiles[(y % activeStamp.height) * activeStamp.width + (x % activeStamp.width)];
+        cells[y * width + x] = { tilesetId: activeStamp.tilesetId, tileIndex };
       }
     }
     const nextLayers = layers.slice();

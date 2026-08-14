@@ -51,6 +51,8 @@ export function MapCanvas() {
   const areas = useMapStore((s) => s.areas);
   const selected = useMapStore((s) => s.selected);
   const activeTool = useMapStore((s) => s.activeTool);
+  const activeStamp = useMapStore((s) => s.activeStamp);
+  const eraserSize = useMapStore((s) => s.eraserSize);
   const pendingPlacement = useMapStore((s) => s.pendingPlacement);
 
   const paintCell = useMapStore((s) => s.paintCell);
@@ -138,6 +140,8 @@ export function MapCanvas() {
   const isPaintingRef = useRef(false);
   const drawStartRef = useRef<{ x: number; y: number } | null>(null);
   const [drawPreview, setDrawPreview] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  // ô đang rê chuột/ngón tay tới — dùng để hiện khung xem trước đúng kích thước stamp/tẩy đang chọn
+  const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
 
   // theo dõi 2 ngón tay để pinch-zoom + pan (Map Editor không dùng thư viện canvas có sẵn nên tự implement)
   const activePointersRef = useRef<Map<number, Point>>(new Map());
@@ -194,6 +198,7 @@ export function MapCanvas() {
     }
 
     if (activePointersRef.current.size >= 2) {
+      setHoverCell(null);
       const pts = Array.from(activePointersRef.current.values()).slice(0, 2);
       const dist = distance(pts[0], pts[1]);
       const mid = midpoint(pts[0], pts[1]);
@@ -210,6 +215,9 @@ export function MapCanvas() {
     }
 
     const cell = cellFromPoint(e.clientX, e.clientY);
+    if (activeTool === "terrain" || activeTool === "erase") setHoverCell(cell);
+    else if (hoverCell) setHoverCell(null);
+
     if (drawStartRef.current) {
       const sx = drawStartRef.current.x;
       const sy = drawStartRef.current.y;
@@ -241,9 +249,15 @@ export function MapCanvas() {
     setDrawPreview(null);
   };
 
+  const handlePointerLeave = (e: React.PointerEvent) => {
+    setHoverCell(null);
+    handlePointerUp(e);
+  };
+
   const handlePointerCancel = (e: React.PointerEvent) => {
     activePointersRef.current.delete(e.pointerId);
     lastPinchRef.current = null;
+    setHoverCell(null);
     stopSingleGesture();
   };
 
@@ -343,7 +357,7 @@ export function MapCanvas() {
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
-          onPointerLeave={handlePointerUp}
+          onPointerLeave={handlePointerLeave}
         >
           <canvas ref={canvasRef} className="map-canvas__terrain" />
 
@@ -408,6 +422,38 @@ export function MapCanvas() {
                 height: drawPreview.h * effectiveTileSize,
               }}
             />
+          )}
+
+          {activeTool === "terrain" && activeStamp && hoverCell && (
+            <div
+              className="map-brush-preview"
+              style={{
+                left: hoverCell.x * effectiveTileSize,
+                top: hoverCell.y * effectiveTileSize,
+                width: activeStamp.width * effectiveTileSize,
+                height: activeStamp.height * effectiveTileSize,
+              }}
+            >
+              <span className="map-brush-preview__label">
+                {activeStamp.width}×{activeStamp.height}
+              </span>
+            </div>
+          )}
+
+          {activeTool === "erase" && hoverCell && (
+            <div
+              className="map-brush-preview map-brush-preview--erase"
+              style={{
+                left: (hoverCell.x - Math.floor(eraserSize / 2)) * effectiveTileSize,
+                top: (hoverCell.y - Math.floor(eraserSize / 2)) * effectiveTileSize,
+                width: eraserSize * effectiveTileSize,
+                height: eraserSize * effectiveTileSize,
+              }}
+            >
+              <span className="map-brush-preview__label">
+                {eraserSize}×{eraserSize}
+              </span>
+            </div>
           )}
         </div>
       </div>

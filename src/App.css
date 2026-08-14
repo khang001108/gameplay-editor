@@ -1018,6 +1018,31 @@ select.field-input {
   pointer-events: none;
 }
 
+.map-brush-preview {
+  position: absolute;
+  border: 1.5px solid var(--accent-action);
+  background: rgba(107, 156, 95, 0.15);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.map-brush-preview--erase {
+  border-color: var(--accent-danger);
+  background: rgba(181, 83, 63, 0.15);
+}
+.map-brush-preview__label {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
 /* ── Drawer (Sidebar/Inspector trên màn hình hẹp) ────────────────
  * Mặc định "display: contents" — wrapper không tham gia layout, Sidebar/Inspector bên trong
  * coi như là con trực tiếp của .app-shell__body, y hệt lúc chưa có wrapper (desktop không đổi gì).
