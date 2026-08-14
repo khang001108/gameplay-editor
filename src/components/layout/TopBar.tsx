@@ -127,10 +127,11 @@ export function TopBar({
             <AuthPanel />
           </>
         )}
+      </div>
 
-        <span className="topbar__sep" />
+      {/* Nằm ngoài .topbar__actions (vùng cuộn ngang) — luôn hiện, không bao giờ bị cuộn khuất khi màn hình hẹp */}
+      <div className="topbar__pinned">
         <ThemeToggle />
-
         <button
           className={`btn btn--icon topbar__drawer-toggle${inspectorOpen ? " btn--primary" : ""}`}
           title="Thuộc tính"
