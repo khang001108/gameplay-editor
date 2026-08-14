@@ -147,6 +147,12 @@
   margin: 0;
   line-height: 1.4;
 }
+.cloud-account__info {
+  color: var(--accent-action);
+  font-size: 11px;
+  margin: 0;
+  line-height: 1.4;
+}
 
 .cloud-menu__empty {
   color: var(--text-faint);

@@ -19,10 +19,11 @@ export function CloudAccountMenu({ docType, name, cloudId, exportData, onSaved, 
   const user = useAuthStore((s) => s.user);
   const authLoading = useAuthStore((s) => s.loading);
   const authError = useAuthStore((s) => s.error);
+  const authInfo = useAuthStore((s) => s.info);
   const signIn = useAuthStore((s) => s.signIn);
   const signUp = useAuthStore((s) => s.signUp);
   const signOut = useAuthStore((s) => s.signOut);
-  const clearAuthError = useAuthStore((s) => s.clearError);
+  const clearAuthMessages = useAuthStore((s) => s.clearMessages);
 
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -95,7 +96,7 @@ export function CloudAccountMenu({ docType, name, cloudId, exportData, onSaved, 
         title={user ? `Đã đăng nhập: ${user.email}` : "Đăng nhập / Lưu Cloud"}
         onClick={() => {
           setOpen((v) => !v);
-          clearAuthError();
+          clearAuthMessages();
         }}
       >
         ☁
@@ -123,6 +124,7 @@ export function CloudAccountMenu({ docType, name, cloudId, exportData, onSaved, 
                 onChange={(e) => setPassword(e.target.value)}
               />
               {authError && <p className="cloud-account__error">{authError}</p>}
+              {authInfo && <p className="cloud-account__info">{authInfo}</p>}
               <div className="map-toolrow">
                 <button className="btn btn--sm" disabled={authLoading || !email || !password} onClick={() => signIn(email, password)}>
                   Đăng nhập
