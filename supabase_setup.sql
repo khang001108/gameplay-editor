@@ -17,18 +17,22 @@ alter table documents enable row level security;
 -- nếu thiếu dòng này sẽ gặp lỗi "permission denied for table documents" dù policy đã đúng.
 grant select, insert, update, delete on table documents to authenticated;
 
+drop policy if exists "Users can view own documents" on documents;
 create policy "Users can view own documents"
   on documents for select
   using (auth.uid() = owner);
 
+drop policy if exists "Users can insert own documents" on documents;
 create policy "Users can insert own documents"
   on documents for insert
   with check (auth.uid() = owner);
 
+drop policy if exists "Users can update own documents" on documents;
 create policy "Users can update own documents"
   on documents for update
   using (auth.uid() = owner);
 
+drop policy if exists "Users can delete own documents" on documents;
 create policy "Users can delete own documents"
   on documents for delete
   using (auth.uid() = owner);
@@ -41,6 +45,7 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists documents_set_updated_at on documents;
 create trigger documents_set_updated_at
   before update on documents
   for each row execute function set_updated_at();
