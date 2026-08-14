@@ -86,6 +86,9 @@ interface MapState {
   ) => Promise<void>;
   removeTileset: (id: string) => void;
   setTileAnimationFrames: (tilesetId: string, baseTileIndex: number, frames: TileAnimationFrame[]) => void;
+  /** đổi animation cho nhiều ô cùng lúc, checkpoint đúng 1 lần — dùng để giữ đồng bộ khi 1 block
+   * nhiều ô (vd 4×4) được gắn animation, mỗi ô trong block đều phải thêm/xoá/sửa frame cùng lúc. */
+  setTileAnimationFramesForMany: (tilesetId: string, entries: { baseTileIndex: number; frames: TileAnimationFrame[] }[]) => void;
 
   addLayer: () => void;
   removeLayer: (id: string) => void;
@@ -283,13 +286,19 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
 
   setTileAnimationFrames: (tilesetId, baseTileIndex, frames) => {
+    get().setTileAnimationFramesForMany(tilesetId, [{ baseTileIndex, frames }]);
+  },
+
+  setTileAnimationFramesForMany: (tilesetId, entries) => {
     get().checkpoint();
     set({
       tilesets: get().tilesets.map((ts) => {
         if (ts.id !== tilesetId) return ts;
         const nextAnimations = { ...ts.animations };
-        if (frames.length === 0) delete nextAnimations[baseTileIndex];
-        else nextAnimations[baseTileIndex] = frames;
+        for (const { baseTileIndex, frames } of entries) {
+          if (frames.length === 0) delete nextAnimations[baseTileIndex];
+          else nextAnimations[baseTileIndex] = frames;
+        }
         return { ...ts, animations: nextAnimations };
       }),
     });

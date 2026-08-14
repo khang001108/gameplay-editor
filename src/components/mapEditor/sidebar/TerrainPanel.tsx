@@ -3,6 +3,7 @@ import { useMapStore } from "../../../state/mapStore";
 import { useTilesetImages } from "../useTilesetImages";
 import { TileThumbnail } from "./TileThumbnail";
 import { LayersPanel } from "./LayersPanel";
+import { AnimationEditorPopup } from "./AnimationEditorPopup";
 import type { TileAnimationFrame } from "../../../types/map";
 
 const SWATCH_SIZE = 28;
@@ -10,6 +11,11 @@ const SWATCH_SIZE = 28;
 interface DragCell {
   col: number;
   row: number;
+}
+
+function sameTiles(a: number[] | undefined, b: number[]): boolean {
+  if (!a || a.length !== b.length) return false;
+  return a.every((v, i) => v === b[i]);
 }
 
 export function TerrainPanel() {
@@ -23,6 +29,7 @@ export function TerrainPanel() {
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setEraserSize = useMapStore((s) => s.setEraserSize);
   const setTileAnimationFrames = useMapStore((s) => s.setTileAnimationFrames);
+  const setTileAnimationFramesForMany = useMapStore((s) => s.setTileAnimationFramesForMany);
   const fillLayer = useMapStore((s) => s.fillLayer);
 
   const images = useTilesetImages(tilesets);
@@ -43,13 +50,13 @@ export function TerrainPanel() {
   const [dragCur, setDragCur] = useState<DragCell | null>(null);
   const [dragPurpose, setDragPurpose] = useState<"stamp" | "frames">("stamp");
 
-  // sửa animation cho 1 tile "gốc": bấm "+ Thêm frame" rồi kéo bôi đen 1 hoặc nhiều ô trong bảng
-  // để nối tất cả vào chuỗi cùng lúc (theo thứ tự trái→phải, trên→dưới)
-  const [editingAnim, setEditingAnim] = useState<{ tilesetId: string; baseTileIndex: number } | null>(null);
+  // sửa animation cho 1 block (1 ô hoặc nhiều ô — chính là activeStamp lúc bấm "🎞 Animation"):
+  // bấm "+ Thêm frame" rồi kéo bôi đen trong bảng để nối thêm frame. Block 1 ô: mọi ô kéo qua là
+  // 1 frame riêng nối tuần tự. Block nhiều ô: phải kéo đúng kích thước, khớp theo vị trí (1↔1, 2↔2...).
+  const [editingAnim, setEditingAnim] = useState<{ tilesetId: string; baseTiles: number[]; width: number; height: number } | null>(null);
   const [pickingFrame, setPickingFrame] = useState(false);
 
   const editingTileset = editingAnim ? tilesets.find((t) => t.id === editingAnim.tilesetId) : undefined;
-  const editingFrames = editingAnim && editingTileset ? editingTileset.animations[editingAnim.baseTileIndex] ?? [] : [];
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -76,15 +83,35 @@ export function TerrainPanel() {
         const h = Math.abs(dragCur.row - dragStart.row) + 1;
 
         if (dragPurpose === "frames" && editingAnim && editingAnim.tilesetId === ts.id) {
-          const currentFrames = ts.animations[editingAnim.baseTileIndex] ?? [];
-          const newFrames: TileAnimationFrame[] = [];
-          for (let dy = 0; dy < h; dy++) {
-            for (let dx = 0; dx < w; dx++) {
-              newFrames.push({ tileIndex: (minRow + dy) * ts.columns + (minCol + dx), duration: 200 });
+          const isSingleTile = editingAnim.width === 1 && editingAnim.height === 1;
+          if (isSingleTile) {
+            // block 1 ô: giữ hành vi cũ — mọi ô kéo qua đều là 1 frame riêng, nối tuần tự vào tile gốc
+            const baseTileIndex = editingAnim.baseTiles[0];
+            const currentFrames = ts.animations[baseTileIndex] ?? [];
+            const newFrames: TileAnimationFrame[] = [];
+            for (let dy = 0; dy < h; dy++) {
+              for (let dx = 0; dx < w; dx++) {
+                newFrames.push({ tileIndex: (minRow + dy) * ts.columns + (minCol + dx), duration: 200 });
+              }
             }
+            setTileAnimationFrames(editingAnim.tilesetId, baseTileIndex, [...currentFrames, ...newFrames]);
+            setPickingFrame(false);
+          } else if (w === editingAnim.width && h === editingAnim.height) {
+            // block nhiều ô: vùng kéo phải khớp đúng kích thước gốc, ghép frame theo đúng vị trí (1↔1, 2↔2...)
+            const entries = editingAnim.baseTiles.map((baseTileIndex, i) => {
+              const dx = i % editingAnim.width;
+              const dy = Math.floor(i / editingAnim.width);
+              const frameTileIndex = (minRow + dy) * ts.columns + (minCol + dx);
+              const currentFrames = ts.animations[baseTileIndex] ?? [];
+              return { baseTileIndex, frames: [...currentFrames, { tileIndex: frameTileIndex, duration: 200 }] };
+            });
+            setTileAnimationFramesForMany(editingAnim.tilesetId, entries);
+            setPickingFrame(false);
+          } else {
+            window.alert(
+              `Vùng chọn phải đúng ${editingAnim.width}×${editingAnim.height} ô (bằng kích thước block gốc) để khớp đúng vị trí từng ô — bạn vừa kéo ${w}×${h}.`
+            );
           }
-          setTileAnimationFrames(editingAnim.tilesetId, editingAnim.baseTileIndex, [...currentFrames, ...newFrames]);
-          setPickingFrame(false);
         } else {
           const tiles: number[] = [];
           for (let dy = 0; dy < h; dy++) {
@@ -101,7 +128,7 @@ export function TerrainPanel() {
     };
     window.addEventListener("pointerup", handleUp);
     return () => window.removeEventListener("pointerup", handleUp);
-  }, [dragTilesetId, dragStart, dragCur, dragPurpose, editingAnim, tilesets, setActiveStamp, setTileAnimationFrames]);
+  }, [dragTilesetId, dragStart, dragCur, dragPurpose, editingAnim, tilesets, setActiveStamp, setTileAnimationFrames, setTileAnimationFramesForMany]);
 
   // theo dõi ngón tay/chuột đang di chuyển qua ô nào trong bảng — dùng elementFromPoint thay vì
   // onMouseEnter từng ô, vì trên cảm ứng mọi pointermove vẫn nhắm vào ô đã chạm đầu tiên (auto-capture).
@@ -269,87 +296,40 @@ export function TerrainPanel() {
         </div>
       )}
 
-      {activeStamp && activeStamp.width === 1 && activeStamp.height === 1 && (
+      {activeStamp && (
         <div className="map-toolrow">
           <button
-            className={`btn btn--sm${editingAnim?.tilesetId === activeStamp.tilesetId && editingAnim?.baseTileIndex === activeStamp.tiles[0] ? " btn--primary" : ""}`}
+            className={`btn btn--sm${editingAnim?.tilesetId === activeStamp.tilesetId && sameTiles(editingAnim?.baseTiles, activeStamp.tiles) ? " btn--primary" : ""}`}
             onClick={() => {
-              const baseTileIndex = activeStamp.tiles[0];
-              if (editingAnim?.tilesetId === activeStamp.tilesetId && editingAnim.baseTileIndex === baseTileIndex) {
+              const isSame = editingAnim?.tilesetId === activeStamp.tilesetId && sameTiles(editingAnim?.baseTiles, activeStamp.tiles);
+              if (isSame) {
                 setEditingAnim(null);
                 setPickingFrame(false);
               } else {
-                setEditingAnim({ tilesetId: activeStamp.tilesetId, baseTileIndex });
+                setEditingAnim({ tilesetId: activeStamp.tilesetId, baseTiles: activeStamp.tiles, width: activeStamp.width, height: activeStamp.height });
                 setPickingFrame(false);
               }
             }}
           >
-            🎞 Animation cho ô #{activeStamp.tiles[0]}
+            🎞 Animation cho block {activeStamp.width}×{activeStamp.height}
           </button>
         </div>
       )}
 
       {editingAnim && editingTileset && (
-        <div className="anim-editor">
-          <div className="anim-editor__header">
-            <span>
-              Animation — {editingTileset.name} #{editingAnim.baseTileIndex}
-            </span>
-            <button
-              className="tileset-block__remove"
-              title="Đóng"
-              onClick={() => {
-                setEditingAnim(null);
-                setPickingFrame(false);
-              }}
-            >
-              ✕
-            </button>
-          </div>
-
-          {editingFrames.length === 0 && <p className="inspector__empty inspector__empty--inline">Chưa có frame nào — tile này đang tĩnh.</p>}
-
-          <div className="anim-editor__frames">
-            {editingFrames.map((frame, idx) => (
-              <div key={idx} className="anim-frame">
-                <TileThumbnail img={images.get(editingTileset.id)} ts={editingTileset} tileIndex={frame.tileIndex} size={24} />
-                <input
-                  className="field-input field-input--sm"
-                  type="number"
-                  min={10}
-                  value={frame.duration}
-                  onChange={(e) => {
-                    const duration = Math.max(10, Number(e.target.value) || 10);
-                    const next = editingFrames.map((f, i) => (i === idx ? { ...f, duration } : f));
-                    setTileAnimationFrames(editingTileset.id, editingAnim.baseTileIndex, next);
-                  }}
-                />
-                <span className="anim-frame__unit">ms</span>
-                <button
-                  className="tileset-block__remove"
-                  title="Xoá frame"
-                  onClick={() => {
-                    const next = editingFrames.filter((_, i) => i !== idx);
-                    setTileAnimationFrames(editingTileset.id, editingAnim.baseTileIndex, next);
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="map-toolrow">
-            <button className={`btn btn--sm${pickingFrame ? " btn--primary" : ""}`} onClick={() => setPickingFrame((v) => !v)}>
-              {pickingFrame ? "Kéo bôi đen 1+ ô trong bảng…" : "+ Thêm frame"}
-            </button>
-            {editingFrames.length > 0 && (
-              <button className="btn btn--sm" onClick={() => setTileAnimationFrames(editingTileset.id, editingAnim.baseTileIndex, [])}>
-                Xoá animation
-              </button>
-            )}
-          </div>
-        </div>
+        <AnimationEditorPopup
+          tileset={editingTileset}
+          img={images.get(editingTileset.id)}
+          baseTiles={editingAnim.baseTiles}
+          width={editingAnim.width}
+          height={editingAnim.height}
+          pickingFrame={pickingFrame}
+          onTogglePicking={() => setPickingFrame((v) => !v)}
+          onClose={() => {
+            setEditingAnim(null);
+            setPickingFrame(false);
+          }}
+        />
       )}
     </div>
   );
