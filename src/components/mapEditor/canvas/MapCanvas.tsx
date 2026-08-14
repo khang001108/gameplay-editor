@@ -4,9 +4,12 @@ import type { MapTool } from "../../../state/mapStore";
 import { getMapObjectDefinition } from "../../../mapDefinitions";
 import { clamp } from "../../../utils/clamp";
 import type { AreaKind } from "../../../types/map";
-import { NEW_MAP_OBJECT_MIME, MOVE_MAP_OBJECT_MIME, type MoveObjectPayload } from "../dragTypes";
 import { useTilesetImages } from "../useTilesetImages";
 import { tileSourceRect, resolveAnimatedTileIndex } from "../tileGeometry";
+import { useThemeStore } from "../../../state/themeStore";
+
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 4;
 
 function areaKindFromTool(tool: MapTool): AreaKind | null {
   if (tool === "area-spawn") return "spawn";
@@ -19,10 +22,24 @@ const TOOL_LABEL: Record<MapTool, string> = {
   select: "Chọn / Di chuyển",
   terrain: "Vẽ terrain",
   erase: "Xoá terrain (eraser)",
-  "area-spawn": "Kéo chuột để vẽ Spawn Area",
-  "area-trigger": "Kéo chuột để vẽ Trigger Area",
-  "area-boundary": "Kéo chuột để vẽ Boundary",
+  "area-spawn": "Chạm/kéo để vẽ Spawn Area",
+  "area-trigger": "Chạm/kéo để vẽ Trigger Area",
+  "area-boundary": "Chạm/kéo để vẽ Boundary",
+  "place-object": "Chạm vào canvas để đặt",
 };
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+function distance(a: Point, b: Point): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function midpoint(a: Point, b: Point): Point {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
 
 export function MapCanvas() {
   const width = useMapStore((s) => s.width);
@@ -34,25 +51,32 @@ export function MapCanvas() {
   const areas = useMapStore((s) => s.areas);
   const selected = useMapStore((s) => s.selected);
   const activeTool = useMapStore((s) => s.activeTool);
+  const pendingPlacement = useMapStore((s) => s.pendingPlacement);
 
   const paintCell = useMapStore((s) => s.paintCell);
   const eraseCell = useMapStore((s) => s.eraseCell);
   const placeObject = useMapStore((s) => s.placeObject);
-  const moveObject = useMapStore((s) => s.moveObject);
+  const positionObject = useMapStore((s) => s.positionObject);
   const addArea = useMapStore((s) => s.addArea);
   const select = useMapStore((s) => s.select);
   const removeSelected = useMapStore((s) => s.removeSelected);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
+  const cancelPlacement = useMapStore((s) => s.cancelPlacement);
   const checkpoint = useMapStore((s) => s.checkpoint);
   const undo = useMapStore((s) => s.undo);
   const redo = useMapStore((s) => s.redo);
+  const theme = useThemeStore((s) => s.theme);
+
+  const [zoom, setZoom] = useState(1);
+  const effectiveTileSize = tileSize * zoom;
 
   const stageRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const images = useTilesetImages(tilesets);
 
-  const stageWidth = width * tileSize;
-  const stageHeight = height * tileSize;
+  const stageWidth = width * effectiveTileSize;
+  const stageHeight = height * effectiveTileSize;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -61,6 +85,7 @@ export function MapCanvas() {
     if (!ctx) return;
 
     const hasAnimatedTiles = tilesets.some((ts) => Object.keys(ts.animations).length > 0);
+    const gridStroke = theme === "light" ? "rgba(0,0,0,0.07)" : "rgba(255,255,255,0.05)";
 
     const draw = (nowMs: number) => {
       canvas.width = stageWidth;
@@ -77,11 +102,11 @@ export function MapCanvas() {
             if (ts && img && img.complete && img.naturalWidth > 0) {
               const drawIndex = resolveAnimatedTileIndex(ts, cell.tileIndex, nowMs);
               const { sx, sy, sw, sh } = tileSourceRect(ts, drawIndex);
-              ctx.drawImage(img, sx, sy, sw, sh, x * tileSize, y * tileSize, tileSize, tileSize);
+              ctx.drawImage(img, sx, sy, sw, sh, x * effectiveTileSize, y * effectiveTileSize, effectiveTileSize, effectiveTileSize);
             }
           }
-          ctx.strokeStyle = "rgba(255,255,255,0.05)";
-          ctx.strokeRect(x * tileSize + 0.5, y * tileSize + 0.5, tileSize - 1, tileSize - 1);
+          ctx.strokeStyle = gridStroke;
+          ctx.strokeRect(x * effectiveTileSize + 0.5, y * effectiveTileSize + 0.5, effectiveTileSize - 1, effectiveTileSize - 1);
         }
       }
     };
@@ -93,12 +118,12 @@ export function MapCanvas() {
     };
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
-  }, [terrain, tilesets, images, width, height, tileSize, stageWidth, stageHeight]);
+  }, [terrain, tilesets, images, width, height, effectiveTileSize, stageWidth, stageHeight, theme]);
 
-  const cellFromEvent = (e: { clientX: number; clientY: number }) => {
+  const cellFromPoint = (clientX: number, clientY: number) => {
     const rect = stageRef.current!.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / tileSize);
-    const y = Math.floor((e.clientY - rect.top) / tileSize);
+    const x = Math.floor((clientX - rect.left) / effectiveTileSize);
+    const y = Math.floor((clientY - rect.top) / effectiveTileSize);
     return { x: clamp(x, 0, width - 1), y: clamp(y, 0, height - 1) };
   };
 
@@ -106,9 +131,34 @@ export function MapCanvas() {
   const drawStartRef = useRef<{ x: number; y: number } | null>(null);
   const [drawPreview, setDrawPreview] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    const cell = cellFromEvent(e);
+  // theo dõi 2 ngón tay để pinch-zoom + pan (Map Editor không dùng thư viện canvas có sẵn nên tự implement)
+  const activePointersRef = useRef<Map<number, Point>>(new Map());
+  const lastPinchRef = useRef<{ dist: number; mid: Point } | null>(null);
+
+  const stopSingleGesture = () => {
+    isPaintingRef.current = false;
+    drawStartRef.current = null;
+    setDrawPreview(null);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activePointersRef.current.size >= 2) {
+      stopSingleGesture();
+      const pts = Array.from(activePointersRef.current.values()).slice(0, 2);
+      lastPinchRef.current = { dist: distance(pts[0], pts[1]), mid: midpoint(pts[0], pts[1]) };
+      return;
+    }
+
+    const cell = cellFromPoint(e.clientX, e.clientY);
+
+    if (activeTool === "place-object" && pendingPlacement) {
+      placeObject(pendingPlacement.defType, cell.x, cell.y);
+      return;
+    }
+
     const areaKind = areaKindFromTool(activeTool);
     if (areaKind) {
       drawStartRef.current = cell;
@@ -130,8 +180,28 @@ export function MapCanvas() {
     select(null);
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const cell = cellFromEvent(e);
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (activePointersRef.current.has(e.pointerId)) {
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    if (activePointersRef.current.size >= 2) {
+      const pts = Array.from(activePointersRef.current.values()).slice(0, 2);
+      const dist = distance(pts[0], pts[1]);
+      const mid = midpoint(pts[0], pts[1]);
+      if (lastPinchRef.current) {
+        const scaleDelta = dist / lastPinchRef.current.dist;
+        setZoom((z) => clamp(z * scaleDelta, MIN_ZOOM, MAX_ZOOM));
+        if (scrollRef.current) {
+          scrollRef.current.scrollLeft -= mid.x - lastPinchRef.current.mid.x;
+          scrollRef.current.scrollTop -= mid.y - lastPinchRef.current.mid.y;
+        }
+      }
+      lastPinchRef.current = { dist, mid };
+      return;
+    }
+
+    const cell = cellFromPoint(e.clientX, e.clientY);
     if (drawStartRef.current) {
       const sx = drawStartRef.current.x;
       const sy = drawStartRef.current.y;
@@ -149,7 +219,11 @@ export function MapCanvas() {
     }
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    activePointersRef.current.delete(e.pointerId);
+    if (activePointersRef.current.size < 2) lastPinchRef.current = null;
+    if (activePointersRef.current.size > 0) return;
+
     isPaintingRef.current = false;
     if (drawStartRef.current && drawPreview) {
       const kind = areaKindFromTool(activeTool);
@@ -159,34 +233,42 @@ export function MapCanvas() {
     setDrawPreview(null);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
+  const handlePointerCancel = (e: React.PointerEvent) => {
+    activePointersRef.current.delete(e.pointerId);
+    lastPinchRef.current = null;
+    stopSingleGesture();
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
-    const rect = stageRef.current!.getBoundingClientRect();
+    setZoom((z) => clamp(z * (e.deltaY < 0 ? 1.08 : 0.92), MIN_ZOOM, MAX_ZOOM));
+  };
 
-    const newType = e.dataTransfer.getData(NEW_MAP_OBJECT_MIME);
-    if (newType) {
-      const gx = Math.floor((e.clientX - rect.left) / tileSize);
-      const gy = Math.floor((e.clientY - rect.top) / tileSize);
-      placeObject(newType, gx, gy);
-      return;
-    }
+  // di chuyển object đã đặt bằng Pointer Events (thay HTML5 drag-and-drop — không chạy được trên cảm ứng)
+  const objectDragRef = useRef<{ id: string; pointerId: number; offsetX: number; offsetY: number } | null>(null);
 
-    const moveRaw = e.dataTransfer.getData(MOVE_MAP_OBJECT_MIME);
-    if (moveRaw) {
-      try {
-        const payload = JSON.parse(moveRaw) as MoveObjectPayload;
-        const px = e.clientX - rect.left - payload.offsetX;
-        const py = e.clientY - rect.top - payload.offsetY;
-        moveObject(payload.id, Math.round(px / tileSize), Math.round(py / tileSize));
-      } catch {
-        /* payload kéo-thả không hợp lệ — bỏ qua */
-      }
-    }
+  const handleObjectPointerDown = (e: React.PointerEvent, objId: string) => {
+    e.stopPropagation();
+    select({ type: "object", id: objId });
+    if (activeTool !== "select") return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    objectDragRef.current = { id: objId, pointerId: e.pointerId, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top };
+    checkpoint();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleObjectPointerMove = (e: React.PointerEvent) => {
+    const drag = objectDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId || !stageRef.current) return;
+    const stageRect = stageRef.current.getBoundingClientRect();
+    const px = e.clientX - stageRect.left - drag.offsetX;
+    const py = e.clientY - stageRect.top - drag.offsetY;
+    positionObject(drag.id, Math.round(px / effectiveTileSize), Math.round(py / effectiveTileSize));
+  };
+
+  const handleObjectPointerUp = (e: React.PointerEvent) => {
+    if (objectDragRef.current?.pointerId === e.pointerId) objectDragRef.current = null;
   };
 
   useEffect(() => {
@@ -194,6 +276,7 @@ export function MapCanvas() {
       const target = e.target as HTMLElement;
       const isTyping = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT";
       if (e.key === "Escape") {
+        cancelPlacement();
         setActiveTool("select");
         drawStartRef.current = null;
         setDrawPreview(null);
@@ -213,30 +296,46 @@ export function MapCanvas() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [selected, removeSelected, setActiveTool, undo, redo]);
+  }, [selected, removeSelected, setActiveTool, undo, redo, cancelPlacement]);
 
   return (
     <div className="map-canvas">
       <div className="map-canvas__toolbar">
         <span>{TOOL_LABEL[activeTool]}</span>
         {activeTool !== "select" && (
-          <button className="btn btn--sm" onClick={() => setActiveTool("select")}>
+          <button
+            className="btn btn--sm"
+            onClick={() => {
+              cancelPlacement();
+              setActiveTool("select");
+            }}
+          >
             Xong (Esc)
           </button>
         )}
+        <div className="map-canvas__zoom">
+          <button className="btn btn--icon" title="Thu nhỏ" onClick={() => setZoom((z) => clamp(z / 1.2, MIN_ZOOM, MAX_ZOOM))}>
+            −
+          </button>
+          <button className="btn btn--sm" title="Về 100%" onClick={() => setZoom(1)}>
+            {Math.round(zoom * 100)}%
+          </button>
+          <button className="btn btn--icon" title="Phóng to" onClick={() => setZoom((z) => clamp(z * 1.2, MIN_ZOOM, MAX_ZOOM))}>
+            +
+          </button>
+        </div>
       </div>
 
-      <div className="map-canvas__scroll">
+      <div className="map-canvas__scroll" ref={scrollRef} onWheel={handleWheel}>
         <div
           ref={stageRef}
           className="map-canvas__stage"
-          style={{ width: stageWidth, height: stageHeight }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
+          style={{ width: stageWidth, height: stageHeight, touchAction: "none" }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          onPointerLeave={handlePointerUp}
         >
           <canvas ref={canvasRef} className="map-canvas__terrain" />
 
@@ -246,8 +345,13 @@ export function MapCanvas() {
               <div
                 key={a.id}
                 className={`map-area map-area--${a.kind}${isSelected ? " map-area--selected" : ""}`}
-                style={{ left: a.x * tileSize, top: a.y * tileSize, width: a.width * tileSize, height: a.height * tileSize }}
-                onMouseDown={(e) => {
+                style={{
+                  left: a.x * effectiveTileSize,
+                  top: a.y * effectiveTileSize,
+                  width: a.width * effectiveTileSize,
+                  height: a.height * effectiveTileSize,
+                }}
+                onPointerDown={(e) => {
                   e.stopPropagation();
                   select({ type: "area", id: a.id });
                 }}
@@ -267,24 +371,18 @@ export function MapCanvas() {
                 className={`map-object${isSelected ? " map-object--selected" : ""}`}
                 style={
                   {
-                    left: o.x * tileSize,
-                    top: o.y * tileSize,
-                    width: def.footprintWidth * tileSize,
-                    height: def.footprintHeight * tileSize,
+                    left: o.x * effectiveTileSize,
+                    top: o.y * effectiveTileSize,
+                    width: def.footprintWidth * effectiveTileSize,
+                    height: def.footprintHeight * effectiveTileSize,
                     "--accent": def.color,
+                    touchAction: "none",
                   } as React.CSSProperties
                 }
-                draggable={activeTool === "select"}
-                onDragStart={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const payload: MoveObjectPayload = { id: o.id, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top };
-                  e.dataTransfer.setData(MOVE_MAP_OBJECT_MIME, JSON.stringify(payload));
-                  e.dataTransfer.effectAllowed = "move";
-                }}
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  select({ type: "object", id: o.id });
-                }}
+                onPointerDown={(e) => handleObjectPointerDown(e, o.id)}
+                onPointerMove={handleObjectPointerMove}
+                onPointerUp={handleObjectPointerUp}
+                onPointerCancel={handleObjectPointerUp}
                 title={def.label}
               >
                 <span className="map-object__label">{def.label}</span>
@@ -295,7 +393,12 @@ export function MapCanvas() {
           {drawPreview && (
             <div
               className="map-area-preview"
-              style={{ left: drawPreview.x * tileSize, top: drawPreview.y * tileSize, width: drawPreview.w * tileSize, height: drawPreview.h * tileSize }}
+              style={{
+                left: drawPreview.x * effectiveTileSize,
+                top: drawPreview.y * effectiveTileSize,
+                width: drawPreview.w * effectiveTileSize,
+                height: drawPreview.h * effectiveTileSize,
+              }}
             />
           )}
         </div>

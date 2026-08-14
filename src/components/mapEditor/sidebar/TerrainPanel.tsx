@@ -80,9 +80,26 @@ export function TerrainPanel() {
       setDragStart(null);
       setDragCur(null);
     };
-    window.addEventListener("mouseup", handleUp);
-    return () => window.removeEventListener("mouseup", handleUp);
+    window.addEventListener("pointerup", handleUp);
+    return () => window.removeEventListener("pointerup", handleUp);
   }, [dragTilesetId, dragStart, dragCur, tilesets, setActiveStamp]);
+
+  // theo dõi ngón tay/chuột đang di chuyển qua ô nào trong bảng — dùng elementFromPoint thay vì
+  // onMouseEnter từng ô, vì trên cảm ứng mọi pointermove vẫn nhắm vào ô đã chạm đầu tiên (auto-capture).
+  useEffect(() => {
+    if (!dragTilesetId) return;
+    const handleMove = (e: PointerEvent) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const swatch = el?.closest<HTMLElement>("[data-tile-index]");
+      if (!swatch || swatch.dataset.tilesetId !== dragTilesetId) return;
+      const ts = tilesets.find((t) => t.id === dragTilesetId);
+      if (!ts) return;
+      const idx = Number(swatch.dataset.tileIndex);
+      setDragCur({ col: idx % ts.columns, row: Math.floor(idx / ts.columns) });
+    };
+    window.addEventListener("pointermove", handleMove);
+    return () => window.removeEventListener("pointermove", handleMove);
+  }, [dragTilesetId, tilesets]);
 
   const isHighlighted = (tsId: string, col: number, row: number) => {
     if (dragTilesetId === tsId && dragStart && dragCur) {
@@ -175,7 +192,9 @@ export function TerrainPanel() {
                     className={`tile-swatch${highlighted ? " tile-swatch--active" : ""}`}
                     style={{ width: SWATCH_SIZE, height: SWATCH_SIZE }}
                     title={hasAnimation ? `Tile #${i} — có animation` : `Tile #${i}`}
-                    onMouseDown={(e) => {
+                    data-tileset-id={ts.id}
+                    data-tile-index={i}
+                    onPointerDown={(e) => {
                       e.preventDefault();
                       if (pickingFrame && editingAnim && editingAnim.tilesetId === ts.id) {
                         setTileAnimationFrames(ts.id, editingAnim.baseTileIndex, [...editingFrames, { tileIndex: i, duration: 200 }]);
@@ -185,9 +204,6 @@ export function TerrainPanel() {
                       setDragTilesetId(ts.id);
                       setDragStart({ col, row });
                       setDragCur({ col, row });
-                    }}
-                    onMouseEnter={(e) => {
-                      if (e.buttons === 1 && dragTilesetId === ts.id) setDragCur({ col, row });
                     }}
                   >
                     <TileThumbnail img={img} ts={ts} tileIndex={i} size={SWATCH_SIZE} />

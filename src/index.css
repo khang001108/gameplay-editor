@@ -17,6 +17,19 @@
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
+/* Giao diện sáng — bật bằng thuộc tính data-theme="light" trên <html> (xem src/state/themeStore.ts).
+ * Giữ nguyên màu accent-* ở cả 2 theme vì chúng chỉ dùng làm chấm màu/viền nhỏ, đủ tương phản trên cả nền sáng/tối. */
+:root[data-theme="light"] {
+  --bg-app: #eee7d8;
+  --bg-panel: #faf6ee;
+  --bg-panel-raised: #f2ecdd;
+  --border: #d8cdb0;
+  --border-soft: #e4dac0;
+  --text: #2b2416;
+  --text-muted: #5c4f3a;
+  --text-faint: #8a7c62;
+}
+
 * {
   box-sizing: border-box;
 }

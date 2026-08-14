@@ -61,15 +61,19 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
+  min-width: 0;
   overflow-x: auto;
-  max-width: 100%;
+  scrollbar-width: thin;
 }
 .topbar__sep {
   width: 1px;
   height: 22px;
   background: var(--border);
   margin: 0 2px;
+}
+.topbar__drawer-toggle {
+  display: none;
+  flex-shrink: 0;
 }
 
 /* ── Auth panel ───────────────────────────────────────────────── */
@@ -181,6 +185,10 @@
   background: #302a20;
   border-color: #4a4030;
 }
+:root[data-theme="light"] .btn:hover {
+  background: #e7ddc4;
+  border-color: #c9bb95;
+}
 .btn--primary {
   background: var(--accent-condition);
   border-color: var(--accent-condition);
@@ -271,20 +279,25 @@
   display: flex;
   align-items: center;
   gap: 9px;
+  width: 100%;
   padding: 8px 10px;
   border-radius: 6px;
   border: 1px solid var(--border-soft);
   background: var(--bg-panel-raised);
-  cursor: grab;
+  cursor: pointer;
   font-size: 12.5px;
+  text-align: left;
   transition: border-color 0.12s, transform 0.08s;
 }
 .palette-item:hover {
   border-color: var(--accent);
 }
 .palette-item:active {
-  cursor: grabbing;
   transform: scale(0.98);
+}
+.palette-item--armed {
+  border-color: var(--accent-condition);
+  box-shadow: 0 0 0 1px var(--accent-condition);
 }
 .palette-item__dot {
   width: 8px;
@@ -298,6 +311,23 @@
 .graph-canvas {
   position: absolute;
   inset: 0;
+}
+.graph-canvas__hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--accent-condition);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 .load-warnings {
@@ -314,6 +344,10 @@
   font-size: 12px;
   line-height: 1.6;
   z-index: 5;
+}
+:root[data-theme="light"] .load-warnings {
+  background: rgba(181, 83, 63, 0.1);
+  color: #7a2e1c;
 }
 
 /* ── Node card (trên canvas) ──────────────────────────────────── */
@@ -615,7 +649,13 @@ select.field-input {
 
 .map-palette-item {
   justify-content: space-between;
-  cursor: grab;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+.map-palette-item--armed {
+  border-color: var(--accent-condition);
+  box-shadow: 0 0 0 1px var(--accent-condition);
 }
 .map-palette-item__size {
   margin-left: auto;
@@ -706,6 +746,7 @@ select.field-input {
   cursor: pointer;
   image-rendering: pixelated;
   flex-shrink: 0;
+  touch-action: none;
 }
 .tile-swatch__anim-badge {
   position: absolute;
@@ -806,10 +847,19 @@ select.field-input {
   font-size: 11.5px;
   color: var(--text-muted);
 }
+.map-canvas__zoom {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .map-canvas__scroll {
   flex: 1;
   overflow: auto;
   background: repeating-conic-gradient(#1a1710 0% 25%, #17140f 0% 50%) 0 0 / 24px 24px;
+}
+:root[data-theme="light"] .map-canvas__scroll {
+  background: repeating-conic-gradient(#e2d8bd 0% 25%, #ece3ca 0% 50%) 0 0 / 24px 24px;
 }
 .map-canvas__stage {
   position: relative;
@@ -853,6 +903,10 @@ select.field-input {
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
+  touch-action: none;
+}
+:root[data-theme="light"] .map-area {
+  background: rgba(0, 0, 0, 0.035);
 }
 .map-area--spawn {
   border-color: var(--accent-action);
@@ -880,4 +934,86 @@ select.field-input {
   border: 1.5px dashed var(--accent-condition);
   background: rgba(212, 169, 78, 0.12);
   pointer-events: none;
+}
+
+/* ── Drawer (Sidebar/Inspector trên màn hình hẹp) ────────────────
+ * Mặc định "display: contents" — wrapper không tham gia layout, Sidebar/Inspector bên trong
+ * coi như là con trực tiếp của .app-shell__body, y hệt lúc chưa có wrapper (desktop không đổi gì).
+ * Ở breakpoint mobile bên dưới mới đổi thành panel trượt cố định. */
+.drawer {
+  display: contents;
+}
+.drawer-backdrop {
+  display: none;
+}
+
+/* ── Responsive / màn hình hẹp (điện thoại, tablet dọc) ──────────────────────── */
+@media (max-width: 860px) {
+  .topbar {
+    gap: 8px;
+    padding: 0 10px;
+  }
+  .topbar__drawer-toggle {
+    display: inline-flex;
+  }
+  .topbar__title {
+    display: none;
+  }
+  .topbar__name-input {
+    min-width: 70px;
+    max-width: 120px;
+    flex: 0 1 90px;
+    padding: 7px 6px;
+  }
+  .mode-tabs {
+    gap: 0;
+  }
+  .mode-tabs__item {
+    padding: 6px 7px;
+  }
+  .mode-tabs__item span:not(.mode-tabs__icon) {
+    display: none;
+  }
+  .mode-tabs__soon {
+    display: none;
+  }
+
+  .drawer {
+    display: block;
+    position: fixed;
+    top: 52px;
+    bottom: 0;
+    width: min(85vw, 320px);
+    z-index: 40;
+    transition: transform 0.22s ease;
+  }
+  .drawer--sidebar {
+    left: 0;
+    transform: translateX(-100%);
+  }
+  .drawer--inspector {
+    right: 0;
+    transform: translateX(100%);
+  }
+  .drawer--open {
+    transform: translateX(0);
+  }
+  .drawer .sidebar,
+  .drawer .inspector {
+    width: 100%;
+    height: 100%;
+    box-shadow: 0 0 28px rgba(0, 0, 0, 0.5);
+  }
+
+  .drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 52px 0 0 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 39;
+  }
+
+  .react-flow__minimap {
+    display: none;
+  }
 }

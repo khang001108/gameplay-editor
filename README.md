@@ -8,6 +8,10 @@ Bộ công cụ thiết kế game, chia theo chế độ (tab trên cùng):
 
 Mỗi chế độ có state, Export/Load JSON, Undo/Redo riêng — đổi tên/màn hình ở đầu trang không ảnh hưởng chế độ còn lại.
 
+Nút ☀️/🌙 ở góc phải TopBar đổi giao diện sáng/tối — tự nhận theo hệ điều hành lần đầu mở, sau đó nhớ lựa chọn (localStorage).
+
+Dùng tốt trên cả điện thoại/tablet cảm ứng — mọi thao tác (vẽ terrain, đặt building/unit/node, di chuyển, vẽ area) đều theo kiểu "chạm để chọn rồi chạm để đặt", không cần kéo-thả kiểu chuột. Ở màn hình hẹp, Sidebar/Inspector ẩn thành drawer trượt (mở bằng nút ☰/⚙ trên TopBar), Map Editor hỗ trợ pinch-zoom 2 ngón.
+
 ## Chạy thử
 
 ```bash
@@ -29,19 +33,20 @@ Kết quả nằm trong thư mục `dist/` — có thể deploy như 1 static si
 
 ## Cách dùng — Map Editor
 
-1. **Terrain**: tab "Terrain" ở Sidebar → nhập Tile W/H (px) — và Margin/Spacing nếu ảnh có viền/khoảng cách giữa các ô (giống Tiled) → **+ Import ảnh tileset** (PNG/JPG bất kỳ). **Kéo chuột trong bảng tile** để chọn 1 hoặc nhiều ô cùng lúc (giữ đúng bố cục đã chọn), bấm **Vẽ** rồi kéo chuột trên canvas để tô cả cụm; bấm **Xoá (Eraser)** để xoá theo cỡ tẩy 1×1/2×2/3×3.
-   - **Animation cho tile**: chọn đúng 1 ô, bấm nút **🎞 Animation cho ô #...**, bấm **+ Thêm frame** rồi click 1 ô khác trong bảng để nối vào chuỗi, chỉnh thời lượng từng frame (ms). Từ đó hễ vẽ ô gốc này lên map, tile sẽ tự động chạy qua các frame (giống Tile Animation trong Tiled).
-2. **Buildings / Units**: chuyển tab tương ứng, **kéo** 1 item từ Sidebar thả vào canvas để đặt. Kéo lại object đã đặt (khi đang ở tool "Chọn / Di chuyển") để di chuyển.
-3. **Spawn/Area**: tab "Spawn/Area" → chọn loại (Spawn/Trigger/Boundary) → **kéo chuột** trên canvas để vẽ hình chữ nhật.
-4. **Chỉnh thuộc tính**: click chọn 1 building/unit/khu vực, panel bên phải (Inspector) hiện property để sửa; không chọn gì thì Inspector hiện Map Settings (kích thước lưới, tile size).
-5. **Xoá**: chọn rồi bấm phím `Delete`/`Backspace`, hoặc nút xoá trong Inspector. Phím `Esc` thoát tool vẽ hiện tại về "Chọn / Di chuyển".
-6. **Lưu/Mở**: **Export JSON** / **Load JSON** ở góc trên — file JSON tự chứa cả ảnh tileset (dạng base64) nên mở lại ở máy khác không cần kèm file ảnh riêng.
-7. **Undo/Redo**: nút ↶/↷ trên TopBar hoặc `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z` cũng là Redo). 1 nét vẽ/xoá terrain kéo chuột dài tính là 1 bước undo, không phải từng ô.
+1. **Terrain**: tab "Terrain" ở Sidebar → nhập Tile W/H (px) — và Margin/Spacing nếu ảnh có viền/khoảng cách giữa các ô (giống Tiled) → **+ Import ảnh tileset** (PNG/JPG bất kỳ). **Kéo (chuột hoặc ngón tay) trong bảng tile** để chọn 1 hoặc nhiều ô cùng lúc (giữ đúng bố cục đã chọn), bấm **Vẽ** rồi kéo trên canvas để tô cả cụm; bấm **Xoá (Eraser)** để xoá theo cỡ tẩy 1×1/2×2/3×3.
+   - **Animation cho tile**: chọn đúng 1 ô, bấm nút **🎞 Animation cho ô #...**, bấm **+ Thêm frame** rồi chạm/click 1 ô khác trong bảng để nối vào chuỗi, chỉnh thời lượng từng frame (ms). Từ đó hễ vẽ ô gốc này lên map, tile sẽ tự động chạy qua các frame (giống Tile Animation trong Tiled).
+2. **Buildings / Units**: chuyển tab tương ứng, **bấm/chạm 1 item** trong Sidebar để "chọn sẵn" (viền vàng), rồi **bấm/chạm vào canvas** để đặt xuống đúng chỗ đó. Ở tool "Chọn / Di chuyển", kéo (chuột hoặc ngón tay) 1 object đã đặt để di chuyển.
+3. **Spawn/Area**: tab "Spawn/Area" → chọn loại (Spawn/Trigger/Boundary) → **kéo** trên canvas để vẽ hình chữ nhật.
+4. **Chỉnh thuộc tính**: chọn 1 building/unit/khu vực, panel bên phải (Inspector) hiện property để sửa; không chọn gì thì Inspector hiện Map Settings (kích thước lưới, tile size).
+5. **Xoá**: chọn rồi bấm phím `Delete`/`Backspace`, hoặc nút xoá trong Inspector. Phím `Esc` (hoặc nút "Xong") thoát tool hiện tại / huỷ đang chọn đặt object, về "Chọn / Di chuyển".
+6. **Zoom**: nút −/100%/+ trên toolbar canvas, `Ctrl`/`Cmd` + cuộn chuột, hoặc chụm/mở 2 ngón tay (pinch) trên cảm ứng — chụm 2 ngón còn kéo được để pan khi đã zoom.
+7. **Lưu/Mở**: **Export JSON** / **Load JSON** ở góc trên — file JSON tự chứa cả ảnh tileset (dạng base64) nên mở lại ở máy khác không cần kèm file ảnh riêng.
+8. **Undo/Redo**: nút ↶/↷ trên TopBar hoặc `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z` cũng là Redo). 1 nét vẽ/xoá terrain kéo dài tính là 1 bước undo, không phải từng ô.
 
 ## Cách dùng — Gameplay Editor
 
-1. **Kéo node** từ Sidebar bên trái thả vào Canvas ở giữa.
-2. **Nối node**: rê chuột từ chấm tròn bên phải 1 node sang chấm tròn bên trái node khác.
+1. **Bấm/chạm 1 node** trong Sidebar bên trái để "chọn sẵn" (viền vàng), rồi **bấm/chạm vào Canvas** để đặt xuống đúng chỗ đó.
+2. **Nối node**: rê chuột (hoặc kéo ngón tay) từ chấm tròn bên phải 1 node sang chấm tròn bên trái node khác.
    - `Condition` có 2 output (`true`/`false`) — nối được 2 nhánh khác nhau.
 3. **Chỉnh thuộc tính**: click chọn 1 node, panel bên phải (Inspector) hiện toàn bộ property để sửa.
 4. **Xoá node**: chọn node rồi bấm nút "Xoá node" trong Inspector, hoặc bấm phím `Delete`/`Backspace`.
@@ -113,10 +118,11 @@ Toàn bộ UI (Sidebar, node hiển thị trên Canvas, form trong Inspector) t�
 ## Đã làm / Chưa làm
 
 **Đã làm**:
-- **Map Editor**: import tileset ảnh bất kỳ (hỗ trợ margin/spacing kiểu Tiled, cắt lưới pixel-perfect qua canvas — không lệch/nhoè), chọn 1 hoặc nhiều ô cùng lúc để vẽ theo cụm, gắn animation nhiều frame cho từng tile (tự chạy trên canvas), đặt 6 loại building + 4 loại unit lên lưới (kéo-thả, di chuyển, chỉnh property), vẽ khu vực Spawn/Trigger/Boundary, resize map, save/load JSON (tự chứa cả ảnh tileset).
-- **Gameplay Editor**: đầy đủ 3 khu vực, 14 loại node (4 Event, 2 Condition, 8 Action), kéo-thả, nối dây, chỉnh property, save/load JSON, validate khi load (bỏ qua node/edge lỗi thay vì crash).
-- **Undo/Redo** riêng cho từng chế độ (nút + Ctrl+Z/Ctrl+Y), gộp nét vẽ/kéo-thả liên tục thành 1 bước.
+- **Map Editor**: import tileset ảnh bất kỳ (hỗ trợ margin/spacing kiểu Tiled, cắt lưới pixel-perfect qua canvas — không lệch/nhoè), chọn 1 hoặc nhiều ô cùng lúc để vẽ theo cụm, gắn animation nhiều frame cho từng tile (tự chạy trên canvas), đặt 6 loại building + 4 loại unit lên lưới (chạm/click để đặt, kéo để di chuyển, chỉnh property), vẽ khu vực Spawn/Trigger/Boundary, zoom/pinch-zoom + pan, resize map, save/load JSON (tự chứa cả ảnh tileset).
+- **Gameplay Editor**: đầy đủ 3 khu vực, 14 loại node (4 Event, 2 Condition, 8 Action), chạm/click để đặt node, nối dây, chỉnh property, save/load JSON, validate khi load (bỏ qua node/edge lỗi thay vì crash).
+- **Undo/Redo** riêng cho từng chế độ (nút + Ctrl+Z/Ctrl+Y), gộp nét vẽ/kéo liên tục thành 1 bước.
 - **Lưu Cloud**: đăng nhập qua Supabase, lưu/mở map & graph theo tài khoản, autosave khi đang làm việc.
+- **Giao diện sáng/tối** + **responsive cho điện thoại/tablet**: Sidebar/Inspector thành drawer trượt, TopBar/ModeTabs thu gọn, mọi tương tác dùng Pointer Events nên chạy được trên cảm ứng (không phụ thuộc kéo-thả HTML5).
 - Tab chuyển đổi giữa các chế độ, mỗi chế độ giữ state/Export/Load riêng.
 
 **Chưa làm**: UI Editor (thiết kế 7 màn hình), Playtest (chạy thử ghép Map + Gameplay), và runtime đọc + THỰC THI các file JSON này trong game thật.

@@ -9,7 +9,7 @@ import { serializeMap } from "../serialization/mapSerializer";
 import { deserializeMap, isMapDocument } from "../serialization/mapDeserializer";
 import { emptyMapDocument } from "../serialization/mapSchema";
 
-export type MapTool = "select" | "terrain" | "erase" | "area-spawn" | "area-trigger" | "area-boundary";
+export type MapTool = "select" | "terrain" | "erase" | "area-spawn" | "area-trigger" | "area-boundary" | "place-object";
 
 export type MapSelection = { type: "object" | "area"; id: string } | null;
 
@@ -50,6 +50,11 @@ interface MapState {
   activeTool: MapTool;
   activeStamp: TileStamp | null;
   eraserSize: 1 | 2 | 3;
+  /** building/unit đang "chọn sẵn" từ palette, chờ chạm/click vào canvas để đặt — dùng chung cho chuột lẫn cảm ứng
+   * (thay cho kéo-thả HTML5 vốn không hoạt động trên di động). */
+  pendingPlacement: { defType: string } | null;
+  armPlacement: (defType: string) => void;
+  cancelPlacement: () => void;
   lastLoadWarnings: string[];
 
   /** id dòng trên Supabase nếu map này đã từng lưu Cloud — null nghĩa là "Lưu Cloud" sẽ tạo dòng mới */
@@ -87,7 +92,10 @@ interface MapState {
   eraseCell: (x: number, y: number) => void;
 
   placeObject: (defType: string, x: number, y: number) => void;
+  /** dùng cho 1 thao tác đơn lẻ (vd sửa X/Y trong Inspector) — tự checkpoint */
   moveObject: (id: string, x: number, y: number) => void;
+  /** dùng khi đang KÉO object trên canvas — không tự checkpoint, gọi checkpoint() 1 lần lúc bắt đầu kéo */
+  positionObject: (id: string, x: number, y: number) => void;
   updateObjectField: (id: string, key: string, value: FieldValue) => void;
   removeObject: (id: string) => void;
 
@@ -119,6 +127,9 @@ export const useMapStore = create<MapState>((set, get) => ({
   activeTool: "select",
   activeStamp: null,
   eraserSize: 1,
+  pendingPlacement: null,
+  armPlacement: (defType) => set({ pendingPlacement: { defType }, activeTool: "place-object", selected: null }),
+  cancelPlacement: () => set((s) => (s.activeTool === "place-object" ? { pendingPlacement: null, activeTool: "select" } : {})),
   lastLoadWarnings: [],
 
   cloudId: null,
@@ -313,11 +324,20 @@ export const useMapStore = create<MapState>((set, get) => ({
     const values: Record<string, FieldValue> = {};
     for (const field of def.fields) values[field.key] = field.default;
     const obj: MapObject = { id: makeId(def.type), kind: def.kind, defType: def.type, x: cx, y: cy, values };
-    set({ objects: [...objects, obj], selected: { type: "object", id: obj.id } });
+    set({
+      objects: [...objects, obj],
+      selected: { type: "object", id: obj.id },
+      pendingPlacement: null,
+      activeTool: "select",
+    });
   },
 
   moveObject: (id, x, y) => {
     get().checkpoint();
+    get().positionObject(id, x, y);
+  },
+
+  positionObject: (id, x, y) => {
     const { objects, width, height } = get();
     set({
       objects: objects.map((o) => {
@@ -418,6 +438,7 @@ export const useMapStore = create<MapState>((set, get) => ({
       selected: null,
       activeTool: "select",
       activeStamp: null,
+      pendingPlacement: null,
       lastLoadWarnings: result.warnings,
       cloudId: null,
       past: [],
@@ -439,6 +460,7 @@ export const useMapStore = create<MapState>((set, get) => ({
       selected: null,
       activeTool: "select",
       activeStamp: null,
+      pendingPlacement: null,
       lastLoadWarnings: [],
       cloudId: null,
       past: [],

@@ -33,6 +33,12 @@ interface GraphState {
   selectedNodeId: string | null;
   lastLoadWarnings: string[];
 
+  /** node type đang "chọn sẵn" từ Sidebar, chờ chạm/click vào canvas để đặt — thay cho kéo-thả HTML5
+   * (không hoạt động trên di động). */
+  pendingNodeType: string | null;
+  armNodePlacement: (defType: string) => void;
+  cancelNodePlacement: () => void;
+
   /** id dòng trên Supabase nếu graph này đã từng lưu Cloud — null nghĩa là "Lưu Cloud" sẽ tạo dòng mới */
   cloudId: string | null;
   setCloudId: (id: string | null) => void;
@@ -72,6 +78,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   edges: [],
   selectedNodeId: null,
   lastLoadWarnings: [],
+
+  pendingNodeType: null,
+  armNodePlacement: (defType) => set({ pendingNodeType: defType }),
+  cancelNodePlacement: () => set({ pendingNodeType: null }),
 
   cloudId: null,
   setCloudId: (id) => set({ cloudId: id }),
@@ -130,7 +140,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       position,
       data: { defType: def.type, category: def.category, values },
     };
-    set({ nodes: [...get().nodes, node], selectedNodeId: node.id });
+    set({ nodes: [...get().nodes, node], selectedNodeId: node.id, pendingNodeType: null });
   },
 
   updateNodeField: (nodeId, fieldKey, value) => {
@@ -168,6 +178,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       nodes: result.nodes,
       edges: result.edges,
       selectedNodeId: null,
+      pendingNodeType: null,
       lastLoadWarnings: result.warnings,
       cloudId: null,
       past: [],
@@ -182,6 +193,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       nodes: [],
       edges: [],
       selectedNodeId: null,
+      pendingNodeType: null,
       lastLoadWarnings: [],
       cloudId: null,
       past: [],

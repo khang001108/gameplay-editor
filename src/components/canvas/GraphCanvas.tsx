@@ -10,9 +10,9 @@ import {
   type Node,
 } from "@xyflow/react";
 import { useGraphStore } from "../../state/graphStore";
+import { useThemeStore } from "../../state/themeStore";
 import type { GraphNodeData } from "../../types/graph";
 import { nodeTypes } from "./nodeTypes";
-import { PALETTE_DRAG_MIME } from "../sidebar/PaletteItem";
 import { getNodeDefinition } from "../../nodeDefinitions";
 
 function GraphCanvasInner() {
@@ -26,12 +26,16 @@ function GraphCanvasInner() {
   const checkpoint = useGraphStore((s) => s.checkpoint);
   const undo = useGraphStore((s) => s.undo);
   const redo = useGraphStore((s) => s.redo);
+  const pendingNodeType = useGraphStore((s) => s.pendingNodeType);
+  const cancelNodePlacement = useGraphStore((s) => s.cancelNodePlacement);
+  const theme = useThemeStore((s) => s.theme);
   const { screenToFlowPosition } = useReactFlow();
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isTyping = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT";
+      if (e.key === "Escape") cancelNodePlacement();
       if (isTyping) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
@@ -45,22 +49,15 @@ function GraphCanvasInner() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [undo, redo]);
+  }, [undo, redo, cancelNodePlacement]);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const defType = e.dataTransfer.getData(PALETTE_DRAG_MIME);
-      if (!defType || !getNodeDefinition(defType)) return;
+  const handlePaneClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!pendingNodeType || !getNodeDefinition(pendingNodeType)) return;
       const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      addNodeFromPalette(defType, position);
+      addNodeFromPalette(pendingNodeType, position);
     },
-    [addNodeFromPalette, screenToFlowPosition]
+    [pendingNodeType, addNodeFromPalette, screenToFlowPosition]
   );
 
   const handleSelectionChange = useCallback(
@@ -71,7 +68,15 @@ function GraphCanvasInner() {
   );
 
   return (
-    <div className="graph-canvas" onDragOver={handleDragOver} onDrop={handleDrop}>
+    <div className="graph-canvas">
+      {pendingNodeType && (
+        <div className="graph-canvas__hint">
+          <span>Chạm/click vào canvas để đặt node</span>
+          <button className="btn btn--sm" onClick={cancelNodePlacement}>
+            Huỷ (Esc)
+          </button>
+        </div>
+      )}
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -81,12 +86,13 @@ function GraphCanvasInner() {
         onConnect={onConnect}
         onSelectionChange={handleSelectionChange}
         onNodeDragStart={() => checkpoint()}
+        onPaneClick={handlePaneClick}
         isValidConnection={(c) => c.source !== c.target}
         deleteKeyCode={["Backspace", "Delete"]}
         fitView
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#3a3226" />
+        <Background variant={BackgroundVariant.Dots} gap={18} size={1} color={theme === "light" ? "#d8cdb0" : "#3a3226"} />
         <Controls showInteractive={false} />
         <MiniMap
           pannable

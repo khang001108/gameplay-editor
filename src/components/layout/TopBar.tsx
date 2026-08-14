@@ -3,6 +3,8 @@ import { downloadJson } from "../../utils/download";
 import { ModeTabs } from "./ModeTabs";
 import { AuthPanel } from "./AuthPanel";
 import { CloudMenu } from "./CloudMenu";
+import { ThemeToggle } from "./ThemeToggle";
+import { useUiStore } from "../../state/uiStore";
 import { isSupabaseConfigured } from "../../lib/supabaseClient";
 import type { EditorMode } from "../../state/editorMode";
 import type { CloudDocType, CloudDocumentRow } from "../../types/cloud";
@@ -45,6 +47,10 @@ export function TopBar({
   onCloudLoaded,
 }: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sidebarOpen = useUiStore((s) => s.sidebarOpen);
+  const inspectorOpen = useUiStore((s) => s.inspectorOpen);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const toggleInspector = useUiStore((s) => s.toggleInspector);
 
   const handleExport = () => {
     const data = exportData();
@@ -73,6 +79,14 @@ export function TopBar({
 
   return (
     <header className="topbar">
+      <button
+        className={`btn btn--icon topbar__drawer-toggle${sidebarOpen ? " btn--primary" : ""}`}
+        title="Công cụ"
+        onClick={toggleSidebar}
+      >
+        ☰
+      </button>
+
       <div className="topbar__brand">
         <span className="topbar__logo">⛭</span>
         <span className="topbar__title">Game Editor</span>
@@ -113,6 +127,17 @@ export function TopBar({
             <AuthPanel />
           </>
         )}
+
+        <span className="topbar__sep" />
+        <ThemeToggle />
+
+        <button
+          className={`btn btn--icon topbar__drawer-toggle${inspectorOpen ? " btn--primary" : ""}`}
+          title="Thuộc tính"
+          onClick={toggleInspector}
+        >
+          ⚙
+        </button>
       </div>
     </header>
   );

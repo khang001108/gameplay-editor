@@ -5,6 +5,7 @@ import { MapEditorShell } from "../mapEditor/MapEditorShell";
 import { useGraphStore } from "../../state/graphStore";
 import { useMapStore } from "../../state/mapStore";
 import { useAuthStore } from "../../state/authStore";
+import { useUiStore } from "../../state/uiStore";
 import { saveCloudDocument } from "../../lib/cloudApi";
 import type { EditorMode } from "../../state/editorMode";
 import type { CloudDocumentRow } from "../../types/cloud";
@@ -13,6 +14,14 @@ const AUTOSAVE_DEBOUNCE_MS = 4000;
 
 export function AppShell() {
   const [mode, setMode] = useState<EditorMode>("map");
+  const sidebarOpen = useUiStore((s) => s.sidebarOpen);
+  const inspectorOpen = useUiStore((s) => s.inspectorOpen);
+  const closeDrawers = useUiStore((s) => s.closeDrawers);
+
+  const handleModeChange = (next: EditorMode) => {
+    setMode(next);
+    closeDrawers();
+  };
 
   const graphName = useGraphStore((s) => s.graphName);
   const setGraphName = useGraphStore((s) => s.setGraphName);
@@ -125,8 +134,9 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
-      <TopBar mode={mode} onModeChange={setMode} {...topBarProps} />
+      <TopBar mode={mode} onModeChange={handleModeChange} {...topBarProps} />
       <div className="app-shell__body">
+        {(sidebarOpen || inspectorOpen) && <div className="drawer-backdrop" onClick={closeDrawers} />}
         {mode === "map" && <MapEditorShell />}
         {mode === "gameplay" && <GameplayEditorShell />}
       </div>

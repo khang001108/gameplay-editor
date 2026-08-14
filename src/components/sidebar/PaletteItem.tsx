@@ -1,18 +1,29 @@
 import type { NodeDefinition } from "../../types/nodeDefs";
-
-/** key MIME riêng cho drag từ sidebar — GraphCanvas đọc lại đúng key này khi onDrop */
-export const PALETTE_DRAG_MIME = "application/gameplay-node-type";
+import { useGraphStore } from "../../state/graphStore";
+import { useUiStore } from "../../state/uiStore";
 
 export function PaletteItem({ def }: { def: NodeDefinition }) {
-  const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData(PALETTE_DRAG_MIME, def.type);
-    e.dataTransfer.effectAllowed = "move";
-  };
+  const isArmed = useGraphStore((s) => s.pendingNodeType === def.type);
+  const armNodePlacement = useGraphStore((s) => s.armNodePlacement);
+  const cancelNodePlacement = useGraphStore((s) => s.cancelNodePlacement);
+  const closeDrawers = useUiStore((s) => s.closeDrawers);
 
   return (
-    <div className="palette-item" draggable onDragStart={handleDragStart} title={def.description} style={{ "--accent": def.color } as React.CSSProperties}>
+    <button
+      type="button"
+      className={`palette-item${isArmed ? " palette-item--armed" : ""}`}
+      onClick={() => {
+        if (isArmed) cancelNodePlacement();
+        else {
+          armNodePlacement(def.type);
+          closeDrawers();
+        }
+      }}
+      title={def.description}
+      style={{ "--accent": def.color } as React.CSSProperties}
+    >
       <span className="palette-item__dot" />
       <span className="palette-item__label">{def.label}</span>
-    </div>
+    </button>
   );
 }

@@ -1,6 +1,7 @@
 import { Sidebar } from "../sidebar/Sidebar";
 import { GraphCanvas } from "../canvas/GraphCanvas";
 import { Inspector } from "../inspector/Inspector";
+import { Drawer } from "../layout/Drawer";
 import { useGraphStore } from "../../state/graphStore";
 
 export function GameplayEditorShell() {
@@ -8,7 +9,9 @@ export function GameplayEditorShell() {
 
   return (
     <>
-      <Sidebar />
+      <Drawer side="sidebar">
+        <Sidebar />
+      </Drawer>
       <main className="app-shell__canvas">
         <GraphCanvas />
         {warnings.length > 0 && (
@@ -19,7 +22,9 @@ export function GameplayEditorShell() {
           </div>
         )}
       </main>
-      <Inspector />
+      <Drawer side="inspector">
+        <Inspector />
+      </Drawer>
     </>
   );
 }
