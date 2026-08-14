@@ -1,11 +1,9 @@
 import { useRef } from "react";
 import { downloadJson } from "../../utils/download";
 import { ModeTabs } from "./ModeTabs";
-import { AuthPanel } from "./AuthPanel";
-import { CloudMenu } from "./CloudMenu";
+import { CloudAccountMenu } from "./CloudAccountMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import { useUiStore } from "../../state/uiStore";
-import { isSupabaseConfigured } from "../../lib/supabaseClient";
 import type { EditorMode } from "../../state/editorMode";
 import type { CloudDocType, CloudDocumentRow } from "../../types/cloud";
 
@@ -119,18 +117,11 @@ export function TopBar({
           Export
         </button>
         <input ref={fileInputRef} type="file" accept="application/json" hidden onChange={handleFileChange} />
-
-        {isSupabaseConfigured && (
-          <>
-            <span className="topbar__sep" />
-            <CloudMenu docType={cloudDocType} name={name} cloudId={cloudId} exportData={exportData} onSaved={onCloudSaved} onLoaded={onCloudLoaded} />
-            <AuthPanel />
-          </>
-        )}
       </div>
 
       {/* Nằm ngoài .topbar__actions (vùng cuộn ngang) — luôn hiện, không bao giờ bị cuộn khuất khi màn hình hẹp */}
       <div className="topbar__pinned">
+        <CloudAccountMenu docType={cloudDocType} name={name} cloudId={cloudId} exportData={exportData} onSaved={onCloudSaved} onLoaded={onCloudLoaded} />
         <ThemeToggle />
         <button
           className={`btn btn--icon topbar__drawer-toggle${inspectorOpen ? " btn--primary" : ""}`}

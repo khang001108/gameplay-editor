@@ -82,64 +82,72 @@
   flex-shrink: 0;
 }
 
-/* ── Auth panel ───────────────────────────────────────────────── */
-.auth-panel {
+/* ── Cloud + tài khoản (1 nút ☁ duy nhất, luôn cố định trong .topbar__pinned) ── */
+.cloud-account {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
 }
-.auth-panel__email {
-  font-size: 11.5px;
+.cloud-account__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(300px, 90vw);
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 30;
+}
+.cloud-account__title {
+  margin: 0;
+  font-size: 12px;
   color: var(--text-muted);
-  max-width: 160px;
+}
+.cloud-account__user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+.cloud-account__user span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.auth-panel__dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  width: 220px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
+.cloud-account__divider {
+  height: 1px;
+  background: var(--border-soft);
+  margin: 2px 0;
+}
+.cloud-account__full {
+  width: 100%;
+}
+.cloud-account__list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  z-index: 20;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 4px;
 }
-.auth-panel__error {
+.cloud-account__error {
   color: var(--accent-danger);
   font-size: 11px;
   margin: 0;
   line-height: 1.4;
 }
 
-/* ── Cloud menu ───────────────────────────────────────────────── */
-.cloud-menu {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.cloud-menu__dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  width: 260px;
-  max-height: 320px;
-  overflow-y: auto;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  z-index: 20;
-}
 .cloud-menu__empty {
   color: var(--text-faint);
   font-size: 11.5px;
@@ -170,11 +178,6 @@
   font-size: 10px;
   color: var(--text-faint);
   font-family: var(--font-mono);
-}
-.cloud-menu__error {
-  color: var(--accent-danger);
-  cursor: help;
-  font-size: 13px;
 }
 
 .btn {
