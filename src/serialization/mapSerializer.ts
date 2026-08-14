@@ -1,4 +1,4 @@
-import type { MapArea, MapDocument, MapObject, TerrainCellRef, TilesetDef } from "../types/map";
+import type { MapArea, MapDocument, MapObject, TerrainLayer, TilesetDef } from "../types/map";
 import { MAP_SCHEMA_VERSION } from "./mapSchema";
 
 export function serializeMap(params: {
@@ -7,7 +7,7 @@ export function serializeMap(params: {
   height: number;
   tileSize: number;
   tilesets: TilesetDef[];
-  terrain: (TerrainCellRef | null)[];
+  layers: TerrainLayer[];
   objects: MapObject[];
   areas: MapArea[];
 }): MapDocument {

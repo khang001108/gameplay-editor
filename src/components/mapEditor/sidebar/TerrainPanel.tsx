@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMapStore } from "../../../state/mapStore";
 import { useTilesetImages } from "../useTilesetImages";
 import { TileThumbnail } from "./TileThumbnail";
+import { LayersPanel } from "./LayersPanel";
 import type { TileAnimationFrame } from "../../../types/map";
 
 const SWATCH_SIZE = 28;
@@ -139,6 +140,10 @@ export function TerrainPanel() {
 
   return (
     <div className="map-sidebar__section">
+      <LayersPanel />
+
+      <div className="map-sidebar__divider" />
+
       <div className="sidebar__hint">
         Import ảnh tileset (PNG), kéo chọn 1 hoặc nhiều ô trong bảng rồi vẽ lên canvas — giống Tiled.
       </div>

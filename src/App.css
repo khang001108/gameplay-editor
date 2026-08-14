@@ -661,6 +661,72 @@ select.field-input {
 .map-sidebar__section-title {
   padding-top: 8px;
 }
+.map-sidebar__divider {
+  height: 1px;
+  background: var(--border-soft);
+  margin: 2px 0;
+}
+
+/* ── Layers ───────────────────────────────────────────────────── */
+.layers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: var(--bg-panel-raised);
+  cursor: pointer;
+}
+.layer-row:hover {
+  border-color: var(--border);
+}
+.layer-row--active {
+  border-color: var(--accent-condition);
+  box-shadow: 0 0 0 1px var(--accent-condition);
+}
+.layer-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text);
+}
+.layer-row__name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+}
+.layer-row__actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.layer-row__icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.layer-row__icon-btn:hover:not(:disabled) {
+  background: var(--bg-panel);
+  color: var(--text);
+}
+.layer-row__icon-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 
 .map-palette-item {
   justify-content: space-between;

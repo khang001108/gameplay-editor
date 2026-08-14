@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AreaKind, MapArea, MapDocument, MapObject, TerrainCellRef, TileAnimationFrame, TilesetDef } from "../types/map";
+import type { AreaKind, MapArea, MapDocument, MapObject, TerrainCellRef, TerrainLayer, TileAnimationFrame, TilesetDef } from "../types/map";
 import type { FieldValue } from "../types/graph";
 import { getMapObjectDefinition } from "../mapDefinitions";
 import { makeId } from "../utils/id";
@@ -29,7 +29,7 @@ interface MapContentSnapshot {
   height: number;
   tileSize: number;
   tilesets: TilesetDef[];
-  terrain: (TerrainCellRef | null)[];
+  layers: TerrainLayer[];
   objects: MapObject[];
   areas: MapArea[];
 }
@@ -42,7 +42,9 @@ interface MapState {
   height: number;
   tileSize: number;
   tilesets: TilesetDef[];
-  terrain: (TerrainCellRef | null)[];
+  layers: TerrainLayer[];
+  /** layer đang được vẽ/xoá — Vẽ/Xoá (eraser) luôn tác động lên đúng layer này */
+  activeLayerId: string;
   objects: MapObject[];
   areas: MapArea[];
 
@@ -85,6 +87,14 @@ interface MapState {
   removeTileset: (id: string) => void;
   setTileAnimationFrames: (tilesetId: string, baseTileIndex: number, frames: TileAnimationFrame[]) => void;
 
+  addLayer: () => void;
+  removeLayer: (id: string) => void;
+  renameLayer: (id: string, name: string) => void;
+  toggleLayerVisibility: (id: string) => void;
+  moveLayerUp: (id: string) => void;
+  moveLayerDown: (id: string) => void;
+  setActiveLayer: (id: string) => void;
+
   setActiveTool: (tool: MapTool) => void;
   setActiveStamp: (stamp: TileStamp) => void;
   setEraserSize: (n: 1 | 2 | 3) => void;
@@ -119,7 +129,8 @@ export const useMapStore = create<MapState>((set, get) => ({
   height: initialDoc.height,
   tileSize: initialDoc.tileSize,
   tilesets: [],
-  terrain: initialDoc.terrain,
+  layers: initialDoc.layers,
+  activeLayerId: initialDoc.layers[0].id,
   objects: [],
   areas: [],
 
@@ -146,7 +157,7 @@ export const useMapStore = create<MapState>((set, get) => ({
       height: s.height,
       tileSize: s.tileSize,
       tilesets: s.tilesets,
-      terrain: s.terrain,
+      layers: s.layers,
       objects: s.objects,
       areas: s.areas,
     };
@@ -163,12 +174,13 @@ export const useMapStore = create<MapState>((set, get) => ({
       height: s.height,
       tileSize: s.tileSize,
       tilesets: s.tilesets,
-      terrain: s.terrain,
+      layers: s.layers,
       objects: s.objects,
       areas: s.areas,
     };
     set({
       ...previous,
+      activeLayerId: previous.layers.some((l) => l.id === s.activeLayerId) ? s.activeLayerId : previous.layers[0].id,
       past: s.past.slice(0, -1),
       future: [...s.future, snap].slice(-MAX_HISTORY),
       selected: null,
@@ -185,12 +197,13 @@ export const useMapStore = create<MapState>((set, get) => ({
       height: s.height,
       tileSize: s.tileSize,
       tilesets: s.tilesets,
-      terrain: s.terrain,
+      layers: s.layers,
       objects: s.objects,
       areas: s.areas,
     };
     set({
       ...next,
+      activeLayerId: next.layers.some((l) => l.id === s.activeLayerId) ? s.activeLayerId : next.layers[0].id,
       future: s.future.slice(0, -1),
       past: [...s.past, snap].slice(-MAX_HISTORY),
       selected: null,
@@ -201,19 +214,22 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   resizeMap: (newWidth, newHeight) => {
     get().checkpoint();
-    const { width, height, terrain, objects, areas } = get();
+    const { width, height, layers, objects, areas } = get();
     const w = Math.max(1, Math.round(newWidth));
     const h = Math.max(1, Math.round(newHeight));
-    const next: (TerrainCellRef | null)[] = new Array(w * h).fill(null);
-    for (let y = 0; y < Math.min(height, h); y++) {
-      for (let x = 0; x < Math.min(width, w); x++) {
-        next[y * w + x] = terrain[y * width + x] ?? null;
+    const resizedLayers = layers.map((layer) => {
+      const next: (TerrainCellRef | null)[] = new Array(w * h).fill(null);
+      for (let y = 0; y < Math.min(height, h); y++) {
+        for (let x = 0; x < Math.min(width, w); x++) {
+          next[y * w + x] = layer.cells[y * width + x] ?? null;
+        }
       }
-    }
+      return { ...layer, cells: next };
+    });
     set({
       width: w,
       height: h,
-      terrain: next,
+      layers: resizedLayers,
       objects: objects.map((o) => ({ ...o, x: clamp(o.x, 0, Math.max(0, w - 1)), y: clamp(o.y, 0, Math.max(0, h - 1)) })),
       areas: areas.map((a) => ({
         ...a,
@@ -256,10 +272,10 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   removeTileset: (id) => {
     get().checkpoint();
-    const { tilesets, terrain, activeStamp } = get();
+    const { tilesets, layers, activeStamp } = get();
     set({
       tilesets: tilesets.filter((t) => t.id !== id),
-      terrain: terrain.map((cell) => (cell?.tilesetId === id ? null : cell)),
+      layers: layers.map((layer) => ({ ...layer, cells: layer.cells.map((cell) => (cell?.tilesetId === id ? null : cell)) })),
       activeStamp: activeStamp?.tilesetId === id ? null : activeStamp,
     });
   },
@@ -277,6 +293,60 @@ export const useMapStore = create<MapState>((set, get) => ({
     });
   },
 
+  addLayer: () => {
+    get().checkpoint();
+    const { layers, width, height } = get();
+    const layer: TerrainLayer = {
+      id: makeId("layer"),
+      name: `Layer ${layers.length + 1}`,
+      visible: true,
+      cells: new Array(width * height).fill(null),
+    };
+    set({ layers: [...layers, layer], activeLayerId: layer.id });
+  },
+
+  removeLayer: (id) => {
+    const { layers, activeLayerId } = get();
+    if (layers.length <= 1) return; // luôn giữ ít nhất 1 layer
+    get().checkpoint();
+    const nextLayers = layers.filter((l) => l.id !== id);
+    set({
+      layers: nextLayers,
+      activeLayerId: activeLayerId === id ? nextLayers[nextLayers.length - 1].id : activeLayerId,
+    });
+  },
+
+  renameLayer: (id, name) => {
+    get().checkpoint();
+    set({ layers: get().layers.map((l) => (l.id === id ? { ...l, name } : l)) });
+  },
+
+  toggleLayerVisibility: (id) => {
+    set({ layers: get().layers.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)) });
+  },
+
+  moveLayerUp: (id) => {
+    const { layers } = get();
+    const i = layers.findIndex((l) => l.id === id);
+    if (i === -1 || i === layers.length - 1) return;
+    get().checkpoint();
+    const next = layers.slice();
+    [next[i], next[i + 1]] = [next[i + 1], next[i]];
+    set({ layers: next });
+  },
+
+  moveLayerDown: (id) => {
+    const { layers } = get();
+    const i = layers.findIndex((l) => l.id === id);
+    if (i <= 0) return;
+    get().checkpoint();
+    const next = layers.slice();
+    [next[i], next[i - 1]] = [next[i - 1], next[i]];
+    set({ layers: next });
+  },
+
+  setActiveLayer: (id) => set({ activeLayerId: id }),
+
   setActiveTool: (tool) => set({ activeTool: tool }),
 
   setActiveStamp: (stamp) => set({ activeStamp: stamp, activeTool: "terrain" }),
@@ -284,34 +354,42 @@ export const useMapStore = create<MapState>((set, get) => ({
   setEraserSize: (n) => set({ eraserSize: n }),
 
   paintCell: (cx, cy) => {
-    const { activeStamp, width, height, terrain } = get();
+    const { activeStamp, width, height, layers, activeLayerId } = get();
     if (!activeStamp) return;
-    const next = terrain.slice();
+    const layerIndex = layers.findIndex((l) => l.id === activeLayerId);
+    if (layerIndex === -1) return;
+    const cells = layers[layerIndex].cells.slice();
     for (let dy = 0; dy < activeStamp.height; dy++) {
       for (let dx = 0; dx < activeStamp.width; dx++) {
         const x = cx + dx;
         const y = cy + dy;
         if (x < 0 || y < 0 || x >= width || y >= height) continue;
         const tileIndex = activeStamp.tiles[dy * activeStamp.width + dx];
-        next[y * width + x] = { tilesetId: activeStamp.tilesetId, tileIndex };
+        cells[y * width + x] = { tilesetId: activeStamp.tilesetId, tileIndex };
       }
     }
-    set({ terrain: next });
+    const nextLayers = layers.slice();
+    nextLayers[layerIndex] = { ...layers[layerIndex], cells };
+    set({ layers: nextLayers });
   },
 
   eraseCell: (cx, cy) => {
-    const { eraserSize, width, height, terrain } = get();
-    const next = terrain.slice();
+    const { eraserSize, width, height, layers, activeLayerId } = get();
+    const layerIndex = layers.findIndex((l) => l.id === activeLayerId);
+    if (layerIndex === -1) return;
+    const cells = layers[layerIndex].cells.slice();
     const half = Math.floor(eraserSize / 2);
     for (let dy = 0; dy < eraserSize; dy++) {
       for (let dx = 0; dx < eraserSize; dx++) {
         const x = cx - half + dx;
         const y = cy - half + dy;
         if (x < 0 || y < 0 || x >= width || y >= height) continue;
-        next[y * width + x] = null;
+        cells[y * width + x] = null;
       }
     }
-    set({ terrain: next });
+    const nextLayers = layers.slice();
+    nextLayers[layerIndex] = { ...layers[layerIndex], cells };
+    set({ layers: nextLayers });
   },
 
   placeObject: (defType, x, y) => {
@@ -416,8 +494,8 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
 
   exportDocument: () => {
-    const { name, width, height, tileSize, tilesets, terrain, objects, areas } = get();
-    return serializeMap({ name, width, height, tileSize, tilesets, terrain, objects, areas });
+    const { name, width, height, tileSize, tilesets, layers, objects, areas } = get();
+    return serializeMap({ name, width, height, tileSize, tilesets, layers, objects, areas });
   },
 
   loadDocument: (doc) => {
@@ -432,7 +510,8 @@ export const useMapStore = create<MapState>((set, get) => ({
       height: result.height,
       tileSize: result.tileSize,
       tilesets: result.tilesets,
-      terrain: result.terrain,
+      layers: result.layers,
+      activeLayerId: result.layers[0].id,
       objects: result.objects,
       areas: result.areas,
       selected: null,
@@ -454,7 +533,8 @@ export const useMapStore = create<MapState>((set, get) => ({
       height: doc.height,
       tileSize: doc.tileSize,
       tilesets: [],
-      terrain: doc.terrain,
+      layers: doc.layers,
+      activeLayerId: doc.layers[0].id,
       objects: [],
       areas: [],
       selected: null,

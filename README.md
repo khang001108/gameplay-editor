@@ -33,8 +33,10 @@ Kết quả nằm trong thư mục `dist/` — có thể deploy như 1 static si
 
 ## Cách dùng — Map Editor
 
-1. **Terrain**: tab "Terrain" ở Sidebar → nhập Tile W/H (px) — và Margin/Spacing nếu ảnh có viền/khoảng cách giữa các ô (giống Tiled) → **+ Import ảnh tileset** (PNG/JPG bất kỳ). **Kéo (chuột hoặc ngón tay) trong bảng tile** để chọn 1 hoặc nhiều ô cùng lúc (giữ đúng bố cục đã chọn), bấm **Vẽ** rồi kéo trên canvas để tô cả cụm; bấm **Xoá (Eraser)** để xoá theo cỡ tẩy 1×1/2×2/3×3.
-   - **Animation cho tile**: chọn đúng 1 ô, bấm nút **🎞 Animation cho ô #...**, bấm **+ Thêm frame** rồi chạm/click 1 ô khác trong bảng để nối vào chuỗi, chỉnh thời lượng từng frame (ms). Từ đó hễ vẽ ô gốc này lên map, tile sẽ tự động chạy qua các frame (giống Tile Animation trong Tiled).
+1. **Terrain**: tab "Terrain" ở Sidebar.
+   - **Layer**: danh sách layer ở đầu tab — layer trên cùng vẽ đè lên layer dưới, giống Tiled. Bấm **+ Thêm layer** để tạo thêm, bấm 1 layer để chọn làm layer đang vẽ (viền vàng), nhấp đúp tên để đổi tên, 👁 để ẩn/hiện, ▲▼ để đổi thứ tự chồng lớp, ✕ để xoá (giữ tối thiểu 1 layer).
+   - Nhập Tile W/H (px) — và Margin/Spacing nếu ảnh có viền/khoảng cách giữa các ô (giống Tiled) → **+ Import ảnh tileset** (PNG/JPG bất kỳ). **Kéo (chuột hoặc ngón tay) trong bảng tile** để chọn 1 hoặc nhiều ô cùng lúc (giữ đúng bố cục đã chọn), bấm **Vẽ** rồi kéo trên canvas để tô cả cụm vào layer đang chọn; bấm **Xoá (Eraser)** để xoá theo cỡ tẩy 1×1/2×2/3×3.
+   - **Animation cho tile**: chọn đúng 1 ô, bấm nút **🎞 Animation cho ô #...**, bấm **+ Thêm frame** rồi **kéo bôi đen 1 hoặc nhiều ô** trong bảng để nối tất cả vào chuỗi cùng lúc (theo thứ tự trái→phải, trên→dưới), chỉnh thời lượng từng frame (ms). Từ đó hễ vẽ ô gốc này lên map, tile sẽ tự động chạy qua các frame (giống Tile Animation trong Tiled).
 2. **Buildings / Units**: chuyển tab tương ứng, **bấm/chạm 1 item** trong Sidebar để "chọn sẵn" (viền vàng), rồi **bấm/chạm vào canvas** để đặt xuống đúng chỗ đó. Ở tool "Chọn / Di chuyển", kéo (chuột hoặc ngón tay) 1 object đã đặt để di chuyển.
 3. **Spawn/Area**: tab "Spawn/Area" → chọn loại (Spawn/Trigger/Boundary) → **kéo** trên canvas để vẽ hình chữ nhật.
 4. **Chỉnh thuộc tính**: chọn 1 building/unit/khu vực, panel bên phải (Inspector) hiện property để sửa; không chọn gì thì Inspector hiện Map Settings (kích thước lưới, tile size).
@@ -109,16 +111,20 @@ Toàn bộ UI (Sidebar, node hiển thị trên Canvas, form trong Inspector) t�
     "columns": 8, "rows": 8,
     "animations": { "5": [{ "tileIndex": 5, "duration": 200 }, { "tileIndex": 6, "duration": 200 }] }
   }],
-  "terrain": [null, { "tilesetId": "...", "tileIndex": 5 }, "... (mảng phẳng, dài width×height, row-major)"],
+  "layers": [
+    { "id": "...", "name": "Layer 1", "visible": true, "cells": [null, { "tilesetId": "...", "tileIndex": 5 }, "... (mảng phẳng, dài width×height, row-major)"] }
+  ],
   "objects": [{ "id": "...", "kind": "building", "defType": "townhall", "x": 2, "y": 3, "values": { "side": "player", "hp": 500 } }],
   "areas": [{ "id": "...", "kind": "spawn", "name": "Spawn 1", "team": "player", "x": 1, "y": 1, "width": 3, "height": 3 }]
 }
 ```
 
+`layers[]` xếp theo thứ tự vẽ thật — phần tử đầu mảng nằm dưới cùng, phần tử cuối mảng vẽ đè lên trên cùng. File JSON export từ bản cũ (chỉ có `terrain` phẳng, chưa có nhiều layer) vẫn mở lại được — tự động bọc thành 1 layer duy nhất.
+
 ## Đã làm / Chưa làm
 
 **Đã làm**:
-- **Map Editor**: import tileset ảnh bất kỳ (hỗ trợ margin/spacing kiểu Tiled, cắt lưới pixel-perfect qua canvas — không lệch/nhoè), chọn 1 hoặc nhiều ô cùng lúc để vẽ theo cụm, gắn animation nhiều frame cho từng tile (tự chạy trên canvas), đặt 6 loại building + 4 loại unit lên lưới (chạm/click để đặt, kéo để di chuyển, chỉnh property), vẽ khu vực Spawn/Trigger/Boundary, zoom/pinch-zoom + pan, resize map, save/load JSON (tự chứa cả ảnh tileset).
+- **Map Editor**: nhiều layer terrain (thêm/xoá/đổi tên/ẩn-hiện/sắp xếp thứ tự chồng lớp, chọn layer đang vẽ), import tileset ảnh bất kỳ (hỗ trợ margin/spacing kiểu Tiled, cắt lưới pixel-perfect qua canvas — không lệch/nhoè), chọn 1 hoặc nhiều ô cùng lúc để vẽ theo cụm, gắn animation nhiều frame cho từng tile bằng kéo bôi đen (tự chạy trên canvas), đặt 6 loại building + 4 loại unit lên lưới (chạm/click để đặt, kéo để di chuyển, chỉnh property), vẽ khu vực Spawn/Trigger/Boundary, zoom/pinch-zoom + pan, resize map, save/load JSON (tự chứa cả ảnh tileset, tương thích ngược file cũ chưa có layer).
 - **Gameplay Editor**: đầy đủ 3 khu vực, 14 loại node (4 Event, 2 Condition, 8 Action), chạm/click để đặt node, nối dây, chỉnh property, save/load JSON, validate khi load (bỏ qua node/edge lỗi thay vì crash).
 - **Undo/Redo** riêng cho từng chế độ (nút + Ctrl+Z/Ctrl+Y), gộp nét vẽ/kéo liên tục thành 1 bước.
 - **Lưu Cloud**: đăng nhập qua Supabase, lưu/mở map & graph theo tài khoản, autosave khi đang làm việc.

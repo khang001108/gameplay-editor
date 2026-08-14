@@ -47,7 +47,7 @@ export function AppShell() {
   const mapRedo = useMapStore((s) => s.redo);
   const mapCloudId = useMapStore((s) => s.cloudId);
   const setMapCloudId = useMapStore((s) => s.setCloudId);
-  const mapTerrain = useMapStore((s) => s.terrain);
+  const mapLayers = useMapStore((s) => s.layers);
   const mapObjects = useMapStore((s) => s.objects);
   const mapAreas = useMapStore((s) => s.areas);
   const mapTilesets = useMapStore((s) => s.tilesets);
@@ -81,7 +81,7 @@ export function AppShell() {
     return () => {
       if (mapAutosaveTimer.current) clearTimeout(mapAutosaveTimer.current);
     };
-  }, [user, mapCloudId, mapName, mapTerrain, mapObjects, mapAreas, mapTilesets, mapWidth, mapHeight, mapTileSize, exportMap, setMapCloudId]);
+  }, [user, mapCloudId, mapName, mapLayers, mapObjects, mapAreas, mapTilesets, mapWidth, mapHeight, mapTileSize, exportMap, setMapCloudId]);
 
   const graphAutosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {

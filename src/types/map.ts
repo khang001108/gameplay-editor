@@ -34,6 +34,16 @@ export interface TerrainCellRef {
   tileIndex: number;
 }
 
+/** 1 layer terrain — vẽ chồng lên nhau theo thứ tự trong mảng `MapDocument.layers`
+ * (phần tử đầu = dưới cùng, phần tử cuối = trên cùng), giống layer trong Tiled. */
+export interface TerrainLayer {
+  id: string;
+  name: string;
+  visible: boolean;
+  /** mảng phẳng row-major, độ dài = width * height */
+  cells: (TerrainCellRef | null)[];
+}
+
 export interface MapObject {
   id: string;
   kind: MapObjectKind;
@@ -68,8 +78,7 @@ export interface MapDocument {
   /** kích thước 1 ô khi hiển thị, tính theo px */
   tileSize: number;
   tilesets: TilesetDef[];
-  /** mảng phẳng row-major, độ dài = width * height */
-  terrain: (TerrainCellRef | null)[];
+  layers: TerrainLayer[];
   objects: MapObject[];
   areas: MapArea[];
 }

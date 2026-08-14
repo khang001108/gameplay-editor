@@ -46,7 +46,7 @@ export function MapCanvas() {
   const height = useMapStore((s) => s.height);
   const tileSize = useMapStore((s) => s.tileSize);
   const tilesets = useMapStore((s) => s.tilesets);
-  const terrain = useMapStore((s) => s.terrain);
+  const layers = useMapStore((s) => s.layers);
   const objects = useMapStore((s) => s.objects);
   const areas = useMapStore((s) => s.areas);
   const selected = useMapStore((s) => s.selected);
@@ -93,10 +93,13 @@ export function MapCanvas() {
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, stageWidth, stageHeight);
 
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const cell = terrain[y * width + x];
-          if (cell) {
+      // vẽ từng layer theo thứ tự trong mảng (đầu = dưới cùng, cuối = trên cùng), bỏ qua layer đang ẩn
+      for (const layer of layers) {
+        if (!layer.visible) continue;
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const cell = layer.cells[y * width + x];
+            if (!cell) continue;
             const ts = tilesets.find((t) => t.id === cell.tilesetId);
             const img = images.get(cell.tilesetId);
             if (ts && img && img.complete && img.naturalWidth > 0) {
@@ -105,7 +108,12 @@ export function MapCanvas() {
               ctx.drawImage(img, sx, sy, sw, sh, x * effectiveTileSize, y * effectiveTileSize, effectiveTileSize, effectiveTileSize);
             }
           }
-          ctx.strokeStyle = gridStroke;
+        }
+      }
+
+      ctx.strokeStyle = gridStroke;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
           ctx.strokeRect(x * effectiveTileSize + 0.5, y * effectiveTileSize + 0.5, effectiveTileSize - 1, effectiveTileSize - 1);
         }
       }
@@ -118,7 +126,7 @@ export function MapCanvas() {
     };
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
-  }, [terrain, tilesets, images, width, height, effectiveTileSize, stageWidth, stageHeight, theme]);
+  }, [layers, tilesets, images, width, height, effectiveTileSize, stageWidth, stageHeight, theme]);
 
   const cellFromPoint = (clientX: number, clientY: number) => {
     const rect = stageRef.current!.getBoundingClientRect();

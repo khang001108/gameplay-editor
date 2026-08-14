@@ -1,4 +1,5 @@
 import type { MapDocument } from "../types/map";
+import { makeId } from "../utils/id";
 
 export const MAP_SCHEMA_VERSION = 1 as const;
 
@@ -14,7 +15,9 @@ export function emptyMapDocument(name = "Untitled Map"): MapDocument {
     height: DEFAULT_MAP_HEIGHT,
     tileSize: DEFAULT_TILE_SIZE,
     tilesets: [],
-    terrain: new Array(DEFAULT_MAP_WIDTH * DEFAULT_MAP_HEIGHT).fill(null),
+    layers: [
+      { id: makeId("layer"), name: "Layer 1", visible: true, cells: new Array(DEFAULT_MAP_WIDTH * DEFAULT_MAP_HEIGHT).fill(null) },
+    ],
     objects: [],
     areas: [],
   };
