@@ -26,6 +26,10 @@ create table if not exists documents (
 
 alter table documents enable row level security;
 
+-- RLS policy chỉ quyết định ĐƯỢC ĐỘNG VÀO DÒNG NÀO — vẫn cần GRANT quyền thao tác trên bảng trước,
+-- nếu thiếu dòng này sẽ gặp lỗi "permission denied for table documents" dù policy đã đúng.
+grant select, insert, update, delete on table documents to authenticated;
+
 create policy "Users can view own documents"
   on documents for select
   using (auth.uid() = owner);
@@ -57,6 +61,15 @@ create trigger documents_set_updated_at
 
 Row Level Security (RLS) đảm bảo mỗi tài khoản chỉ đọc/sửa/xoá được dòng do chính mình tạo — kể cả
 khi ai đó có được `anon key` cũng không xem được dữ liệu người khác.
+
+### Gặp lỗi "permission denied for table documents"?
+
+Nghĩa là bảng `documents` đã được tạo từ trước nhưng **thiếu dòng GRANT** ở trên (thường do làm theo
+hướng dẫn cũ). Không cần tạo lại bảng — vào **SQL Editor**, chạy riêng đúng 1 dòng này rồi thử Lưu Cloud lại:
+
+```sql
+grant select, insert, update, delete on table documents to authenticated;
+```
 
 ## 3. (Tuỳ chọn) Tắt xác nhận email khi đăng ký — để test nhanh
 
