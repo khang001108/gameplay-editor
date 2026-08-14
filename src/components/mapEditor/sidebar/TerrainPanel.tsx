@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMapStore } from "../../../state/mapStore";
 import { useTilesetImages } from "../useTilesetImages";
 import { TileThumbnail } from "./TileThumbnail";
+import type { TileAnimationFrame } from "../../../types/map";
 
 const SWATCH_SIZE = 28;
 
@@ -33,12 +34,15 @@ export function TerrainPanel() {
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // kéo chuột trên bảng tile để chọn 1 vùng nhiều ô (giống Tiled) — không chỉ 1 ô
+  // kéo chuột trên bảng tile để chọn 1 vùng nhiều ô (giống Tiled) — dùng chung cho cả chọn stamp
+  // để vẽ VÀ chọn nhiều ô liền lúc thêm animation frame (xem dragPurpose)
   const [dragTilesetId, setDragTilesetId] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState<DragCell | null>(null);
   const [dragCur, setDragCur] = useState<DragCell | null>(null);
+  const [dragPurpose, setDragPurpose] = useState<"stamp" | "frames">("stamp");
 
-  // sửa animation cho 1 tile "gốc": click "+ Thêm frame" rồi click tile khác trong bảng để nối vào chuỗi
+  // sửa animation cho 1 tile "gốc": bấm "+ Thêm frame" rồi kéo bôi đen 1 hoặc nhiều ô trong bảng
+  // để nối tất cả vào chuỗi cùng lúc (theo thứ tự trái→phải, trên→dưới)
   const [editingAnim, setEditingAnim] = useState<{ tilesetId: string; baseTileIndex: number } | null>(null);
   const [pickingFrame, setPickingFrame] = useState(false);
 
@@ -68,13 +72,26 @@ export function TerrainPanel() {
         const minRow = Math.min(dragStart.row, dragCur.row);
         const w = Math.abs(dragCur.col - dragStart.col) + 1;
         const h = Math.abs(dragCur.row - dragStart.row) + 1;
-        const tiles: number[] = [];
-        for (let dy = 0; dy < h; dy++) {
-          for (let dx = 0; dx < w; dx++) {
-            tiles.push((minRow + dy) * ts.columns + (minCol + dx));
+
+        if (dragPurpose === "frames" && editingAnim && editingAnim.tilesetId === ts.id) {
+          const currentFrames = ts.animations[editingAnim.baseTileIndex] ?? [];
+          const newFrames: TileAnimationFrame[] = [];
+          for (let dy = 0; dy < h; dy++) {
+            for (let dx = 0; dx < w; dx++) {
+              newFrames.push({ tileIndex: (minRow + dy) * ts.columns + (minCol + dx), duration: 200 });
+            }
           }
+          setTileAnimationFrames(editingAnim.tilesetId, editingAnim.baseTileIndex, [...currentFrames, ...newFrames]);
+          setPickingFrame(false);
+        } else {
+          const tiles: number[] = [];
+          for (let dy = 0; dy < h; dy++) {
+            for (let dx = 0; dx < w; dx++) {
+              tiles.push((minRow + dy) * ts.columns + (minCol + dx));
+            }
+          }
+          setActiveStamp({ tilesetId: ts.id, width: w, height: h, tiles });
         }
-        setActiveStamp({ tilesetId: ts.id, width: w, height: h, tiles });
       }
       setDragTilesetId(null);
       setDragStart(null);
@@ -82,7 +99,7 @@ export function TerrainPanel() {
     };
     window.addEventListener("pointerup", handleUp);
     return () => window.removeEventListener("pointerup", handleUp);
-  }, [dragTilesetId, dragStart, dragCur, tilesets, setActiveStamp]);
+  }, [dragTilesetId, dragStart, dragCur, dragPurpose, editingAnim, tilesets, setActiveStamp, setTileAnimationFrames]);
 
   // theo dõi ngón tay/chuột đang di chuyển qua ô nào trong bảng — dùng elementFromPoint thay vì
   // onMouseEnter từng ô, vì trên cảm ứng mọi pointermove vẫn nhắm vào ô đã chạm đầu tiên (auto-capture).
@@ -199,11 +216,7 @@ export function TerrainPanel() {
                     data-tile-index={i}
                     onPointerDown={(e) => {
                       e.preventDefault();
-                      if (pickingFrame && editingAnim && editingAnim.tilesetId === ts.id) {
-                        setTileAnimationFrames(ts.id, editingAnim.baseTileIndex, [...editingFrames, { tileIndex: i, duration: 200 }]);
-                        setPickingFrame(false);
-                        return;
-                      }
+                      setDragPurpose(pickingFrame && editingAnim && editingAnim.tilesetId === ts.id ? "frames" : "stamp");
                       setDragTilesetId(ts.id);
                       setDragStart({ col, row });
                       setDragCur({ col, row });
@@ -311,7 +324,7 @@ export function TerrainPanel() {
 
           <div className="map-toolrow">
             <button className={`btn btn--sm${pickingFrame ? " btn--primary" : ""}`} onClick={() => setPickingFrame((v) => !v)}>
-              {pickingFrame ? "Click 1 ô trong bảng…" : "+ Thêm frame"}
+              {pickingFrame ? "Kéo bôi đen 1+ ô trong bảng…" : "+ Thêm frame"}
             </button>
             {editingFrames.length > 0 && (
               <button className="btn btn--sm" onClick={() => setTileAnimationFrames(editingTileset.id, editingAnim.baseTileIndex, [])}>
