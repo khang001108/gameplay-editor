@@ -37,28 +37,34 @@ export const useAuthStore = create<AuthState>((set) => ({
       return;
     }
     set({ loading: true, error: null, info: null });
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      set({ loading: false, error: error.message });
-      return;
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        set({ error: error.message });
+        return;
+      }
+      // Supabase trả về user rỗng "identities" (không báo lỗi) khi email đã đăng ký trước đó —
+      // đây là cách chính thức để phát hiện case này (chống dò email tồn tại).
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        set({ error: "Email này đã có tài khoản — thử Đăng nhập thay vì Đăng ký." });
+        return;
+      }
+      // Không có session nghĩa là project đang bật "Confirm email" — tài khoản đã tạo nhưng CHƯA
+      // đăng nhập được, phải xác nhận qua email trước. Không được set `user` ở đây kẻo app tưởng
+      // nhầm là đã đăng nhập trong khi mọi request tới Supabase sau đó sẽ lỗi vì không có session thật.
+      if (!data.session) {
+        set({ info: `Đã gửi email xác nhận tới ${email} — mở email, bấm xác nhận rồi quay lại bấm Đăng nhập.` });
+        return;
+      }
+      set({ user: toAuthUser(data.user) });
+    } catch (e) {
+      // signUp/signIn của supabase-js có thể throw thẳng (vd lỗi mạng, sai URL project) thay vì
+      // trả về {error} — không bắt ở đây thì `loading` sẽ treo mãi true và người dùng bấm nút
+      // không thấy phản hồi gì cả.
+      set({ error: e instanceof Error ? e.message : "Không kết nối được tới Supabase — kiểm tra lại URL/key trong .env.local." });
+    } finally {
+      set({ loading: false });
     }
-    // Supabase trả về user rỗng "identities" (không báo lỗi) khi email đã đăng ký trước đó —
-    // đây là cách chính thức để phát hiện case này (chống dò email tồn tại).
-    if (data.user && data.user.identities && data.user.identities.length === 0) {
-      set({ loading: false, error: "Email này đã có tài khoản — thử Đăng nhập thay vì Đăng ký." });
-      return;
-    }
-    // Không có session nghĩa là project đang bật "Confirm email" — tài khoản đã tạo nhưng CHƯA
-    // đăng nhập được, phải xác nhận qua email trước. Không được set `user` ở đây kẻo app tưởng
-    // nhầm là đã đăng nhập trong khi mọi request tới Supabase sau đó sẽ lỗi vì không có session thật.
-    if (!data.session) {
-      set({
-        loading: false,
-        info: `Đã gửi email xác nhận tới ${email} — mở email, bấm xác nhận rồi quay lại bấm Đăng nhập.`,
-      });
-      return;
-    }
-    set({ loading: false, user: toAuthUser(data.user) });
   },
 
   signIn: async (email, password) => {
@@ -67,19 +73,31 @@ export const useAuthStore = create<AuthState>((set) => ({
       return;
     }
     set({ loading: true, error: null, info: null });
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      set({ loading: false, error: error.message });
-      return;
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        set({ error: error.message });
+        return;
+      }
+      set({ user: toAuthUser(data.user) });
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : "Không kết nối được tới Supabase — kiểm tra lại URL/key trong .env.local." });
+    } finally {
+      set({ loading: false });
     }
-    set({ loading: false, user: toAuthUser(data.user) });
   },
 
   signOut: async () => {
     if (!supabase) return;
     set({ loading: true });
-    await supabase.auth.signOut();
-    set({ loading: false, user: null });
+    try {
+      await supabase.auth.signOut();
+      set({ user: null });
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : "Không đăng xuất được — thử lại." });
+    } finally {
+      set({ loading: false });
+    }
   },
 
   clearMessages: () => set({ error: null, info: null }),
