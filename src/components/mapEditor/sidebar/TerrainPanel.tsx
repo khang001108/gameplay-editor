@@ -179,7 +179,10 @@ export function TerrainPanel() {
                 ✕
               </button>
             </div>
-            <div className="tile-palette">
+            <div
+              className="tile-palette"
+              style={{ gridTemplateColumns: `repeat(${ts.columns}, ${SWATCH_SIZE}px)` }}
+            >
               {Array.from({ length: ts.columns * ts.rows }).map((_, i) => {
                 const col = i % ts.columns;
                 const row = Math.floor(i / ts.columns);

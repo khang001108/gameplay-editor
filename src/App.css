@@ -741,11 +741,12 @@ select.field-input {
   color: var(--accent-danger);
 }
 .tile-palette {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  /* gridTemplateColumns đặt inline theo đúng số cột thật của tileset (xem TerrainPanel.tsx) —
+   * không dùng flex-wrap vì nó xuống dòng theo bề rộng Sidebar, làm lệch khỏi bố cục ảnh gốc. */
   gap: 3px;
   max-height: 220px;
-  overflow-y: auto;
+  overflow: auto;
 }
 .tile-swatch {
   position: relative;
