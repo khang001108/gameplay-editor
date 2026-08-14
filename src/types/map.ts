@@ -3,14 +3,30 @@ import type { MapObjectKind } from "./mapDefs";
 
 /** 1 bộ ảnh tileset do người dùng import — ảnh được lưu thẳng dạng dataURL trong document
  * để file JSON xuất ra tự chứa đủ, mở lại ở máy khác không cần kèm file ảnh riêng. */
+export interface TileAnimationFrame {
+  /** tileIndex trong cùng tileset sẽ hiện tại frame này */
+  tileIndex: number;
+  /** thời lượng hiện frame, tính bằng mili-giây */
+  duration: number;
+}
+
 export interface TilesetDef {
   id: string;
   name: string;
   imageDataUrl: string;
   tileWidth: number;
   tileHeight: number;
+  /** khoảng trắng viền ngoài trước tile đầu tiên (px) — giống "Margin" trong Tiled */
+  marginX: number;
+  marginY: number;
+  /** khoảng cách giữa 2 tile liền kề (px) — giống "Spacing" trong Tiled */
+  spacingX: number;
+  spacingY: number;
   columns: number;
   rows: number;
+  /** animation gắn theo tileIndex "gốc" — hễ terrain nào đặt tile này sẽ tự động chạy qua các frame,
+   * giống Tile Animation Editor trong Tiled. Key là tileIndex (number), rỗng = tile không animate. */
+  animations: Record<number, TileAnimationFrame[]>;
 }
 
 export interface TerrainCellRef {

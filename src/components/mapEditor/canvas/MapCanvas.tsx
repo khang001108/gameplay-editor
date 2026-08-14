@@ -5,6 +5,8 @@ import { getMapObjectDefinition } from "../../../mapDefinitions";
 import { clamp } from "../../../utils/clamp";
 import type { AreaKind } from "../../../types/map";
 import { NEW_MAP_OBJECT_MIME, MOVE_MAP_OBJECT_MIME, type MoveObjectPayload } from "../dragTypes";
+import { useTilesetImages } from "../useTilesetImages";
+import { tileSourceRect, resolveAnimatedTileIndex } from "../tileGeometry";
 
 function areaKindFromTool(tool: MapTool): AreaKind | null {
   if (tool === "area-spawn") return "spawn";
@@ -41,65 +43,57 @@ export function MapCanvas() {
   const select = useMapStore((s) => s.select);
   const removeSelected = useMapStore((s) => s.removeSelected);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
+  const checkpoint = useMapStore((s) => s.checkpoint);
+  const undo = useMapStore((s) => s.undo);
+  const redo = useMapStore((s) => s.redo);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
-  const [, forceTick] = useState(0);
+  const images = useTilesetImages(tilesets);
 
   const stageWidth = width * tileSize;
   const stageHeight = height * tileSize;
-
-  useEffect(() => {
-    for (const ts of tilesets) {
-      if (imageCacheRef.current.has(ts.id)) continue;
-      const img = new Image();
-      img.onload = () => forceTick((t) => t + 1);
-      img.src = ts.imageDataUrl;
-      imageCacheRef.current.set(ts.id, img);
-    }
-    for (const id of Array.from(imageCacheRef.current.keys())) {
-      if (!tilesets.some((t) => t.id === id)) imageCacheRef.current.delete(id);
-    }
-  }, [tilesets]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    canvas.width = stageWidth;
-    canvas.height = stageHeight;
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, stageWidth, stageHeight);
 
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const cell = terrain[y * width + x];
-        if (cell) {
-          const ts = tilesets.find((t) => t.id === cell.tilesetId);
-          const img = imageCacheRef.current.get(cell.tilesetId);
-          if (ts && img && img.complete && img.naturalWidth > 0) {
-            const col = cell.tileIndex % ts.columns;
-            const row = Math.floor(cell.tileIndex / ts.columns);
-            ctx.drawImage(
-              img,
-              col * ts.tileWidth,
-              row * ts.tileHeight,
-              ts.tileWidth,
-              ts.tileHeight,
-              x * tileSize,
-              y * tileSize,
-              tileSize,
-              tileSize
-            );
+    const hasAnimatedTiles = tilesets.some((ts) => Object.keys(ts.animations).length > 0);
+
+    const draw = (nowMs: number) => {
+      canvas.width = stageWidth;
+      canvas.height = stageHeight;
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, stageWidth, stageHeight);
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const cell = terrain[y * width + x];
+          if (cell) {
+            const ts = tilesets.find((t) => t.id === cell.tilesetId);
+            const img = images.get(cell.tilesetId);
+            if (ts && img && img.complete && img.naturalWidth > 0) {
+              const drawIndex = resolveAnimatedTileIndex(ts, cell.tileIndex, nowMs);
+              const { sx, sy, sw, sh } = tileSourceRect(ts, drawIndex);
+              ctx.drawImage(img, sx, sy, sw, sh, x * tileSize, y * tileSize, tileSize, tileSize);
+            }
           }
+          ctx.strokeStyle = "rgba(255,255,255,0.05)";
+          ctx.strokeRect(x * tileSize + 0.5, y * tileSize + 0.5, tileSize - 1, tileSize - 1);
         }
-        ctx.strokeStyle = "rgba(255,255,255,0.05)";
-        ctx.strokeRect(x * tileSize + 0.5, y * tileSize + 0.5, tileSize - 1, tileSize - 1);
       }
-    }
-  }, [terrain, tilesets, width, height, tileSize, stageWidth, stageHeight]);
+    };
+
+    let rafId: number;
+    const loop = (nowMs: number) => {
+      draw(nowMs);
+      if (hasAnimatedTiles) rafId = requestAnimationFrame(loop);
+    };
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, [terrain, tilesets, images, width, height, tileSize, stageWidth, stageHeight]);
 
   const cellFromEvent = (e: { clientX: number; clientY: number }) => {
     const rect = stageRef.current!.getBoundingClientRect();
@@ -123,11 +117,13 @@ export function MapCanvas() {
     }
     if (activeTool === "terrain") {
       isPaintingRef.current = true;
+      checkpoint();
       paintCell(cell.x, cell.y);
       return;
     }
     if (activeTool === "erase") {
       isPaintingRef.current = true;
+      checkpoint();
       eraseCell(cell.x, cell.y);
       return;
     }
@@ -205,10 +201,19 @@ export function MapCanvas() {
       if ((e.key === "Delete" || e.key === "Backspace") && selected && !isTyping) {
         removeSelected();
       }
+      if (!isTyping && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      }
+      if (!isTyping && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
+      }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [selected, removeSelected, setActiveTool]);
+  }, [selected, removeSelected, setActiveTool, undo, redo]);
 
   return (
     <div className="map-canvas">

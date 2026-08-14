@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -23,7 +23,29 @@ function GraphCanvasInner() {
   const onConnect = useGraphStore((s) => s.onConnect);
   const addNodeFromPalette = useGraphStore((s) => s.addNodeFromPalette);
   const selectNode = useGraphStore((s) => s.selectNode);
+  const checkpoint = useGraphStore((s) => s.checkpoint);
+  const undo = useGraphStore((s) => s.undo);
+  const redo = useGraphStore((s) => s.redo);
   const { screenToFlowPosition } = useReactFlow();
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT";
+      if (isTyping) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [undo, redo]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -58,6 +80,7 @@ function GraphCanvasInner() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onSelectionChange={handleSelectionChange}
+        onNodeDragStart={() => checkpoint()}
         isValidConnection={(c) => c.source !== c.target}
         deleteKeyCode={["Backspace", "Delete"]}
         fitView

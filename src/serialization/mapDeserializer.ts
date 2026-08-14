@@ -32,7 +32,15 @@ export function isMapDocument(value: unknown): value is MapDocument {
 
 export function deserializeMap(doc: MapDocument): MapDeserializeResult {
   const warnings: string[] = [];
-  const tilesetIds = new Set(doc.tilesets.map((t) => t.id));
+  const tilesets: TilesetDef[] = doc.tilesets.map((t) => ({
+    ...t,
+    marginX: t.marginX ?? 0,
+    marginY: t.marginY ?? 0,
+    spacingX: t.spacingX ?? 0,
+    spacingY: t.spacingY ?? 0,
+    animations: t.animations ?? {},
+  }));
+  const tilesetIds = new Set(tilesets.map((t) => t.id));
 
   const expectedLen = doc.width * doc.height;
   let terrain = doc.terrain;
@@ -61,7 +69,7 @@ export function deserializeMap(doc: MapDocument): MapDeserializeResult {
     width: doc.width,
     height: doc.height,
     tileSize: doc.tileSize,
-    tilesets: doc.tilesets,
+    tilesets,
     terrain,
     objects,
     areas: doc.areas,

@@ -1,7 +1,11 @@
 import { useRef } from "react";
 import { downloadJson } from "../../utils/download";
 import { ModeTabs } from "./ModeTabs";
+import { AuthPanel } from "./AuthPanel";
+import { CloudMenu } from "./CloudMenu";
+import { isSupabaseConfigured } from "../../lib/supabaseClient";
 import type { EditorMode } from "../../state/editorMode";
+import type { CloudDocType, CloudDocumentRow } from "../../types/cloud";
 
 interface TopBarProps {
   mode: EditorMode;
@@ -12,9 +16,34 @@ interface TopBarProps {
   onLoadJson: (parsed: unknown) => void;
   exportData: () => unknown;
   exportFilePrefix: string;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  cloudDocType: CloudDocType;
+  cloudId: string | null;
+  onCloudSaved: (id: string) => void;
+  onCloudLoaded: (row: CloudDocumentRow) => void;
 }
 
-export function TopBar({ mode, onModeChange, name, onNameChange, onNew, onLoadJson, exportData, exportFilePrefix }: TopBarProps) {
+export function TopBar({
+  mode,
+  onModeChange,
+  name,
+  onNameChange,
+  onNew,
+  onLoadJson,
+  exportData,
+  exportFilePrefix,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  cloudDocType,
+  cloudId,
+  onCloudSaved,
+  onCloudLoaded,
+}: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
@@ -59,16 +88,31 @@ export function TopBar({ mode, onModeChange, name, onNameChange, onNew, onLoadJs
       />
 
       <div className="topbar__actions">
-        <button className="btn" onClick={handleNew}>
+        <button className="btn btn--icon" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo}>
+          ↶
+        </button>
+        <button className="btn btn--icon" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={onRedo}>
+          ↷
+        </button>
+        <span className="topbar__sep" />
+        <button className="btn btn--sm" onClick={handleNew}>
           New
         </button>
-        <button className="btn" onClick={handleLoadClick}>
-          Load JSON
+        <button className="btn btn--sm" onClick={handleLoadClick}>
+          Load
         </button>
-        <button className="btn btn--primary" onClick={handleExport}>
-          Export JSON
+        <button className="btn btn--sm btn--primary" onClick={handleExport}>
+          Export
         </button>
         <input ref={fileInputRef} type="file" accept="application/json" hidden onChange={handleFileChange} />
+
+        {isSupabaseConfigured && (
+          <>
+            <span className="topbar__sep" />
+            <CloudMenu docType={cloudDocType} name={name} cloudId={cloudId} exportData={exportData} onSaved={onCloudSaved} onLoaded={onCloudLoaded} />
+            <AuthPanel />
+          </>
+        )}
       </div>
     </header>
   );

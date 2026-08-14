@@ -43,7 +43,8 @@
 }
 .topbar__name-input {
   flex: 1;
-  max-width: 340px;
+  min-width: 90px;
+  max-width: 200px;
   background: var(--bg-panel-raised);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -58,7 +59,112 @@
 .topbar__actions {
   margin-left: auto;
   display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.topbar__sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 2px;
+}
+
+/* ── Auth panel ───────────────────────────────────────────────── */
+.auth-panel {
+  position: relative;
+  display: flex;
+  align-items: center;
   gap: 8px;
+}
+.auth-panel__email {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.auth-panel__dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 20;
+}
+.auth-panel__error {
+  color: var(--accent-danger);
+  font-size: 11px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* ── Cloud menu ───────────────────────────────────────────────── */
+.cloud-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cloud-menu__dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 20;
+}
+.cloud-menu__empty {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.cloud-menu__item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.cloud-menu__item:hover {
+  background: var(--bg-panel-raised);
+}
+.cloud-menu__item-name {
+  font-size: 12px;
+  color: var(--text);
+}
+.cloud-menu__item-time {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+.cloud-menu__error {
+  color: var(--accent-danger);
+  cursor: help;
+  font-size: 13px;
 }
 
 .btn {
@@ -414,6 +520,11 @@ select.field-input {
   padding: 5px 10px;
   font-size: 11.5px;
 }
+.btn--icon {
+  padding: 7px 10px;
+  line-height: 1;
+  font-size: 14px;
+}
 .field-input--sm {
   padding: 5px 8px;
   width: 64px;
@@ -588,6 +699,7 @@ select.field-input {
   overflow-y: auto;
 }
 .tile-swatch {
+  position: relative;
   border: 1px solid var(--border-soft);
   border-radius: 3px;
   padding: 0;
@@ -595,12 +707,31 @@ select.field-input {
   image-rendering: pixelated;
   flex-shrink: 0;
 }
+.tile-swatch__anim-badge {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  font-size: 7px;
+  line-height: 1;
+  color: #1a1610;
+  background: var(--accent-condition);
+  border-radius: 2px;
+  padding: 1px 2px;
+  pointer-events: none;
+}
 .tile-swatch:hover {
   border-color: var(--text-muted);
 }
 .tile-swatch--active {
   border-color: var(--accent-condition);
   box-shadow: 0 0 0 1px var(--accent-condition);
+}
+.tile-swatch__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
 }
 
 .map-toolrow {
@@ -613,6 +744,48 @@ select.field-input {
   font-size: 11px;
   color: var(--text-faint);
   margin-right: 2px;
+}
+
+/* ── Tile animation editor ────────────────────────────────────── */
+.anim-editor {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--bg-panel-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.anim-editor__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.anim-editor__frames {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.anim-frame {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.anim-frame .tile-swatch__canvas {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+}
+.anim-frame .field-input--sm {
+  width: 52px;
+}
+.anim-frame__unit {
+  font-size: 10px;
+  color: var(--text-faint);
 }
 
 /* ── Map canvas ───────────────────────────────────────────────── */

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AreaKind, MapArea, MapDocument, MapObject, TerrainCellRef, TilesetDef } from "../types/map";
+import type { AreaKind, MapArea, MapDocument, MapObject, TerrainCellRef, TileAnimationFrame, TilesetDef } from "../types/map";
 import type { FieldValue } from "../types/graph";
 import { getMapObjectDefinition } from "../mapDefinitions";
 import { makeId } from "../utils/id";
@@ -13,6 +13,29 @@ export type MapTool = "select" | "terrain" | "erase" | "area-spawn" | "area-trig
 
 export type MapSelection = { type: "object" | "area"; id: string } | null;
 
+/** 1 vùng tile đã chọn trong bảng tileset — vẽ được nhiều ô cùng lúc, giữ đúng bố cục như lúc chọn (kiểu Tiled) */
+export interface TileStamp {
+  tilesetId: string;
+  width: number;
+  height: number;
+  /** mảng phẳng row-major, độ dài = width*height, mỗi phần tử là tileIndex trong tileset */
+  tiles: number[];
+}
+
+/** phần state được Undo/Redo theo dõi — không gồm lựa chọn/tool đang bật vì đó không phải nội dung map */
+interface MapContentSnapshot {
+  name: string;
+  width: number;
+  height: number;
+  tileSize: number;
+  tilesets: TilesetDef[];
+  terrain: (TerrainCellRef | null)[];
+  objects: MapObject[];
+  areas: MapArea[];
+}
+
+const MAX_HISTORY = 50;
+
 interface MapState {
   name: string;
   width: number;
@@ -25,21 +48,41 @@ interface MapState {
 
   selected: MapSelection;
   activeTool: MapTool;
-  activeTilesetId: string | null;
-  activeTileIndex: number | null;
-  brushSize: 1 | 2 | 3;
+  activeStamp: TileStamp | null;
+  eraserSize: 1 | 2 | 3;
   lastLoadWarnings: string[];
+
+  /** id dòng trên Supabase nếu map này đã từng lưu Cloud — null nghĩa là "Lưu Cloud" sẽ tạo dòng mới */
+  cloudId: string | null;
+  setCloudId: (id: string | null) => void;
+
+  past: MapContentSnapshot[];
+  future: MapContentSnapshot[];
+  /** lưu 1 mốc undo tại thời điểm hiện tại — gọi TRƯỚC khi áp thay đổi. Canvas tự gọi khi bắt đầu 1 nét vẽ/xoá
+   * (vì paintCell/eraseCell gọi liên tục lúc kéo chuột, không thể tự chốt mốc ở từng ô). */
+  checkpoint: () => void;
+  undo: () => void;
+  redo: () => void;
 
   setName: (name: string) => void;
   resizeMap: (width: number, height: number) => void;
   setTileSize: (tileSize: number) => void;
 
-  importTileset: (file: File, tileWidth: number, tileHeight: number) => Promise<void>;
+  importTileset: (
+    file: File,
+    tileWidth: number,
+    tileHeight: number,
+    marginX: number,
+    marginY: number,
+    spacingX: number,
+    spacingY: number
+  ) => Promise<void>;
   removeTileset: (id: string) => void;
+  setTileAnimationFrames: (tilesetId: string, baseTileIndex: number, frames: TileAnimationFrame[]) => void;
 
   setActiveTool: (tool: MapTool) => void;
-  setActiveTile: (tilesetId: string, tileIndex: number) => void;
-  setBrushSize: (n: 1 | 2 | 3) => void;
+  setActiveStamp: (stamp: TileStamp) => void;
+  setEraserSize: (n: 1 | 2 | 3) => void;
   paintCell: (x: number, y: number) => void;
   eraseCell: (x: number, y: number) => void;
 
@@ -74,14 +117,79 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   selected: null,
   activeTool: "select",
-  activeTilesetId: null,
-  activeTileIndex: null,
-  brushSize: 1,
+  activeStamp: null,
+  eraserSize: 1,
   lastLoadWarnings: [],
+
+  cloudId: null,
+  setCloudId: (id) => set({ cloudId: id }),
+
+  past: [],
+  future: [],
+
+  checkpoint: () => {
+    const s = get();
+    const snap: MapContentSnapshot = {
+      name: s.name,
+      width: s.width,
+      height: s.height,
+      tileSize: s.tileSize,
+      tilesets: s.tilesets,
+      terrain: s.terrain,
+      objects: s.objects,
+      areas: s.areas,
+    };
+    set({ past: [...s.past, snap].slice(-MAX_HISTORY), future: [] });
+  },
+
+  undo: () => {
+    const s = get();
+    const previous = s.past[s.past.length - 1];
+    if (!previous) return;
+    const snap: MapContentSnapshot = {
+      name: s.name,
+      width: s.width,
+      height: s.height,
+      tileSize: s.tileSize,
+      tilesets: s.tilesets,
+      terrain: s.terrain,
+      objects: s.objects,
+      areas: s.areas,
+    };
+    set({
+      ...previous,
+      past: s.past.slice(0, -1),
+      future: [...s.future, snap].slice(-MAX_HISTORY),
+      selected: null,
+    });
+  },
+
+  redo: () => {
+    const s = get();
+    const next = s.future[s.future.length - 1];
+    if (!next) return;
+    const snap: MapContentSnapshot = {
+      name: s.name,
+      width: s.width,
+      height: s.height,
+      tileSize: s.tileSize,
+      tilesets: s.tilesets,
+      terrain: s.terrain,
+      objects: s.objects,
+      areas: s.areas,
+    };
+    set({
+      ...next,
+      future: s.future.slice(0, -1),
+      past: [...s.past, snap].slice(-MAX_HISTORY),
+      selected: null,
+    });
+  },
 
   setName: (name) => set({ name }),
 
   resizeMap: (newWidth, newHeight) => {
+    get().checkpoint();
     const { width, height, terrain, objects, areas } = get();
     const w = Math.max(1, Math.round(newWidth));
     const h = Math.max(1, Math.round(newHeight));
@@ -108,66 +216,84 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   setTileSize: (tileSize) => set({ tileSize: Math.max(4, Math.round(tileSize)) }),
 
-  importTileset: async (file, tileWidth, tileHeight) => {
+  importTileset: async (file, tileWidth, tileHeight, marginX, marginY, spacingX, spacingY) => {
+    get().checkpoint();
     const dataUrl = await readFileAsDataURL(file);
     const img = await loadImage(dataUrl);
-    const columns = Math.max(1, Math.floor(img.width / tileWidth));
-    const rows = Math.max(1, Math.floor(img.height / tileHeight));
+    const columns = Math.max(1, Math.floor((img.width - marginX + spacingX) / (tileWidth + spacingX)));
+    const rows = Math.max(1, Math.floor((img.height - marginY + spacingY) / (tileHeight + spacingY)));
     const tileset: TilesetDef = {
       id: makeId("tileset"),
       name: file.name.replace(/\.[^/.]+$/, ""),
       imageDataUrl: dataUrl,
       tileWidth,
       tileHeight,
+      marginX,
+      marginY,
+      spacingX,
+      spacingY,
       columns,
       rows,
+      animations: {},
     };
     set({
       tilesets: [...get().tilesets, tileset],
-      activeTilesetId: tileset.id,
-      activeTileIndex: 0,
+      activeStamp: { tilesetId: tileset.id, width: 1, height: 1, tiles: [0] },
       activeTool: "terrain",
     });
   },
 
   removeTileset: (id) => {
-    const { tilesets, terrain, activeTilesetId } = get();
+    get().checkpoint();
+    const { tilesets, terrain, activeStamp } = get();
     set({
       tilesets: tilesets.filter((t) => t.id !== id),
       terrain: terrain.map((cell) => (cell?.tilesetId === id ? null : cell)),
-      activeTilesetId: activeTilesetId === id ? null : activeTilesetId,
-      activeTileIndex: activeTilesetId === id ? null : get().activeTileIndex,
+      activeStamp: activeStamp?.tilesetId === id ? null : activeStamp,
+    });
+  },
+
+  setTileAnimationFrames: (tilesetId, baseTileIndex, frames) => {
+    get().checkpoint();
+    set({
+      tilesets: get().tilesets.map((ts) => {
+        if (ts.id !== tilesetId) return ts;
+        const nextAnimations = { ...ts.animations };
+        if (frames.length === 0) delete nextAnimations[baseTileIndex];
+        else nextAnimations[baseTileIndex] = frames;
+        return { ...ts, animations: nextAnimations };
+      }),
     });
   },
 
   setActiveTool: (tool) => set({ activeTool: tool }),
 
-  setActiveTile: (tilesetId, tileIndex) => set({ activeTilesetId: tilesetId, activeTileIndex: tileIndex, activeTool: "terrain" }),
+  setActiveStamp: (stamp) => set({ activeStamp: stamp, activeTool: "terrain" }),
 
-  setBrushSize: (n) => set({ brushSize: n }),
+  setEraserSize: (n) => set({ eraserSize: n }),
 
   paintCell: (cx, cy) => {
-    const { activeTilesetId, activeTileIndex, brushSize, width, height, terrain } = get();
-    if (activeTilesetId == null || activeTileIndex == null) return;
+    const { activeStamp, width, height, terrain } = get();
+    if (!activeStamp) return;
     const next = terrain.slice();
-    const half = Math.floor(brushSize / 2);
-    for (let dy = 0; dy < brushSize; dy++) {
-      for (let dx = 0; dx < brushSize; dx++) {
-        const x = cx - half + dx;
-        const y = cy - half + dy;
+    for (let dy = 0; dy < activeStamp.height; dy++) {
+      for (let dx = 0; dx < activeStamp.width; dx++) {
+        const x = cx + dx;
+        const y = cy + dy;
         if (x < 0 || y < 0 || x >= width || y >= height) continue;
-        next[y * width + x] = { tilesetId: activeTilesetId, tileIndex: activeTileIndex };
+        const tileIndex = activeStamp.tiles[dy * activeStamp.width + dx];
+        next[y * width + x] = { tilesetId: activeStamp.tilesetId, tileIndex };
       }
     }
     set({ terrain: next });
   },
 
   eraseCell: (cx, cy) => {
-    const { brushSize, width, height, terrain } = get();
+    const { eraserSize, width, height, terrain } = get();
     const next = terrain.slice();
-    const half = Math.floor(brushSize / 2);
-    for (let dy = 0; dy < brushSize; dy++) {
-      for (let dx = 0; dx < brushSize; dx++) {
+    const half = Math.floor(eraserSize / 2);
+    for (let dy = 0; dy < eraserSize; dy++) {
+      for (let dx = 0; dx < eraserSize; dx++) {
         const x = cx - half + dx;
         const y = cy - half + dy;
         if (x < 0 || y < 0 || x >= width || y >= height) continue;
@@ -180,6 +306,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   placeObject: (defType, x, y) => {
     const def = getMapObjectDefinition(defType);
     if (!def) return;
+    get().checkpoint();
     const { width, height, objects } = get();
     const cx = clamp(x, 0, Math.max(0, width - def.footprintWidth));
     const cy = clamp(y, 0, Math.max(0, height - def.footprintHeight));
@@ -190,6 +317,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
 
   moveObject: (id, x, y) => {
+    get().checkpoint();
     const { objects, width, height } = get();
     set({
       objects: objects.map((o) => {
@@ -203,12 +331,14 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
 
   updateObjectField: (id, key, value) => {
+    get().checkpoint();
     set({
       objects: get().objects.map((o) => (o.id === id ? { ...o, values: { ...o.values, [key]: value } } : o)),
     });
   },
 
   removeObject: (id) => {
+    get().checkpoint();
     set({
       objects: get().objects.filter((o) => o.id !== id),
       selected: get().selected?.type === "object" && get().selected?.id === id ? null : get().selected,
@@ -216,6 +346,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
 
   addArea: (kind, x, y, w, h) => {
+    get().checkpoint();
     const { width, height, areas } = get();
     const nx = clamp(x, 0, Math.max(0, width - 1));
     const ny = clamp(y, 0, Math.max(0, height - 1));
@@ -228,6 +359,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
 
   updateArea: (id, patch) => {
+    get().checkpoint();
     const { areas, width, height } = get();
     set({
       areas: areas.map((a) => {
@@ -247,6 +379,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
 
   removeArea: (id) => {
+    get().checkpoint();
     set({
       areas: get().areas.filter((a) => a.id !== id),
       selected: get().selected?.type === "area" && get().selected?.id === id ? null : get().selected,
@@ -284,9 +417,11 @@ export const useMapStore = create<MapState>((set, get) => ({
       areas: result.areas,
       selected: null,
       activeTool: "select",
-      activeTilesetId: null,
-      activeTileIndex: null,
+      activeStamp: null,
       lastLoadWarnings: result.warnings,
+      cloudId: null,
+      past: [],
+      future: [],
     });
   },
 
@@ -303,9 +438,11 @@ export const useMapStore = create<MapState>((set, get) => ({
       areas: [],
       selected: null,
       activeTool: "select",
-      activeTilesetId: null,
-      activeTileIndex: null,
+      activeStamp: null,
       lastLoadWarnings: [],
+      cloudId: null,
+      past: [],
+      future: [],
     });
   },
 }));
