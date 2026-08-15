@@ -102,13 +102,19 @@ export function TopBar({
       />
 
       <div className="topbar__actions">
-        <button className="btn btn--icon" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo}>
-          ↶
-        </button>
-        <button className="btn btn--icon" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={onRedo}>
-          ↷
-        </button>
-        <span className="topbar__sep" />
+        {/* Map Editor đã có Undo/Redo ngay trong thanh công cụ trên canvas — khỏi lặp lại ở đây nữa,
+         * chỉ Gameplay Editor (chưa có thanh công cụ riêng) mới cần cặp nút này. */}
+        {mode !== "map" && (
+          <>
+            <button className="btn btn--icon" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo}>
+              ↶
+            </button>
+            <button className="btn btn--icon" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={onRedo}>
+              ↷
+            </button>
+            <span className="topbar__sep" />
+          </>
+        )}
         <button className="btn btn--sm" onClick={handleNew}>
           New
         </button>

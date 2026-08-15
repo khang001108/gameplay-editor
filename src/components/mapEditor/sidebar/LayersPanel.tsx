@@ -76,6 +76,17 @@ export function LayersPanel() {
               <div className="layer-row__actions">
                 <button
                   className="layer-row__icon-btn"
+                  title="Đổi tên"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingId(layer.id);
+                    setEditingName(layer.name);
+                  }}
+                >
+                  ✏️
+                </button>
+                <button
+                  className="layer-row__icon-btn"
                   title="Đưa lên trên"
                   disabled={index === layers.length - 1}
                   onClick={(e) => {
