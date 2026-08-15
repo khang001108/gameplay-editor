@@ -11,6 +11,9 @@ export function useTilesetImages(tilesets: TilesetDef[]): Map<string, HTMLImageE
     for (const ts of tilesets) {
       if (cacheRef.current.has(ts.id)) continue;
       const img = new Image();
+      // ảnh có thể là URL Supabase Storage (sau khi lưu Cloud) thay vì data: URL cục bộ — cần
+      // crossOrigin để canvas không bị "tainted" nếu sau này có tính năng đọc lại pixel/export.
+      img.crossOrigin = "anonymous";
       img.onload = () => setTick((t) => t + 1);
       img.src = ts.imageDataUrl;
       cacheRef.current.set(ts.id, img);

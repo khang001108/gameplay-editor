@@ -842,6 +842,58 @@ select.field-input {
 .tileset-block__remove:hover {
   color: var(--accent-danger);
 }
+
+/* ── Cây thư mục tileset (import cả folder) ──────────────────────── */
+.tileset-folder {
+  display: flex;
+  flex-direction: column;
+}
+.tileset-folder__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 6px 4px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  text-align: left;
+}
+.tileset-folder__header:hover {
+  background: var(--bg-panel-raised);
+}
+.tileset-folder__chevron {
+  width: 10px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: 10px;
+}
+.tileset-folder__icon {
+  flex-shrink: 0;
+}
+.tileset-folder__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tileset-folder__count {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+.tileset-folder__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 4px 9px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border-soft);
+}
 .tile-palette {
   display: grid;
   /* gridTemplateColumns đặt inline theo đúng số cột thật của tileset (xem TerrainPanel.tsx) —

@@ -270,6 +270,10 @@ export const useMapStore = create<MapState>((set, get) => ({
         const img = await loadImage(dataUrl);
         const columns = Math.max(1, Math.floor((img.width - marginX + spacingX) / (tileWidth + spacingX)));
         const rows = Math.max(1, Math.floor((img.height - marginY + spacingY) / (tileHeight + spacingY)));
+        // webkitRelativePath (chỉ có khi chọn cả folder, dạng "TênFolder/con/cháu/ảnh.png") — cắt bỏ
+        // tên file ở cuối để lấy đường dẫn thư mục, giữ nguyên cấu trúc cây thư mục gốc trên máy.
+        const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+        const folderPath = relPath ? relPath.slice(0, Math.max(0, relPath.length - file.name.length - 1)) : undefined;
         const tileset: TilesetDef = {
           id: makeId("tileset"),
           name: file.name.replace(/\.[^/.]+$/, ""),
@@ -283,6 +287,7 @@ export const useMapStore = create<MapState>((set, get) => ({
           columns,
           rows,
           animations: {},
+          ...(folderPath ? { folderPath } : {}),
         };
         return tileset;
       })

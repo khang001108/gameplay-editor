@@ -55,3 +55,36 @@ create trigger documents_set_updated_at
 -- "permission denied for table documents" -> chạy riêng đúng dòng dưới đây:
 -- ---------------------------------------------------------------------------
 -- grant select, insert, update, delete on table documents to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Storage bucket cho ảnh tileset — lúc "Lưu Cloud", ảnh tileset (có thể vài chục MB nếu import
+-- cả folder) được upload vào đây thay vì nhét base64 vào cột documents.data (jsonb), tránh làm
+-- phình DB và tránh phải re-upload lại nguyên khối ảnh mỗi lần autosave.
+-- ---------------------------------------------------------------------------
+insert into storage.buckets (id, name, public)
+values ('tileset-images', 'tileset-images', true)
+on conflict (id) do nothing;
+
+-- Mỗi user chỉ upload/sửa/xoá được file trong đúng thư mục riêng của mình: "{user_id}/...".
+-- (storage.foldername(name))[1] = phần đầu tiên của path, vd path "abc-123/tileset_1.png" -> "abc-123".
+drop policy if exists "Users can upload own tileset images" on storage.objects;
+create policy "Users can upload own tileset images"
+  on storage.objects for insert
+  with check (bucket_id = 'tileset-images' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "Users can update own tileset images" on storage.objects;
+create policy "Users can update own tileset images"
+  on storage.objects for update
+  using (bucket_id = 'tileset-images' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "Users can delete own tileset images" on storage.objects;
+create policy "Users can delete own tileset images"
+  on storage.objects for delete
+  using (bucket_id = 'tileset-images' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Bucket public nên ai có URL cũng xem được ảnh (cần thiết để <img>/canvas load ảnh lúc mở map đã
+-- Lưu Cloud) — không lộ gì nhạy cảm vì chỉ là ảnh tileset, không phải dữ liệu riêng tư.
+drop policy if exists "Public can view tileset images" on storage.objects;
+create policy "Public can view tileset images"
+  on storage.objects for select
+  using (bucket_id = 'tileset-images');
