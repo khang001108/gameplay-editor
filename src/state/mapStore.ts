@@ -264,34 +264,43 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   importTilesetFiles: async (files, tileWidth, tileHeight, marginX, marginY, spacingX, spacingY) => {
     if (files.length === 0) return;
-    const built = await Promise.all(
-      files.map(async (file) => {
-        const dataUrl = await readFileAsDataURL(file);
-        const img = await loadImage(dataUrl);
-        const columns = Math.max(1, Math.floor((img.width - marginX + spacingX) / (tileWidth + spacingX)));
-        const rows = Math.max(1, Math.floor((img.height - marginY + spacingY) / (tileHeight + spacingY)));
-        // webkitRelativePath (chỉ có khi chọn cả folder, dạng "TênFolder/con/cháu/ảnh.png") — cắt bỏ
-        // tên file ở cuối để lấy đường dẫn thư mục, giữ nguyên cấu trúc cây thư mục gốc trên máy.
-        const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-        const folderPath = relPath ? relPath.slice(0, Math.max(0, relPath.length - file.name.length - 1)) : undefined;
-        const tileset: TilesetDef = {
-          id: makeId("tileset"),
-          name: file.name.replace(/\.[^/.]+$/, ""),
-          imageDataUrl: dataUrl,
-          tileWidth,
-          tileHeight,
-          marginX,
-          marginY,
-          spacingX,
-          spacingY,
-          columns,
-          rows,
-          animations: {},
-          ...(folderPath ? { folderPath } : {}),
-        };
-        return tileset;
-      })
-    );
+
+    const buildOne = async (file: File): Promise<TilesetDef> => {
+      const dataUrl = await readFileAsDataURL(file);
+      const img = await loadImage(dataUrl);
+      const columns = Math.max(1, Math.floor((img.width - marginX + spacingX) / (tileWidth + spacingX)));
+      const rows = Math.max(1, Math.floor((img.height - marginY + spacingY) / (tileHeight + spacingY)));
+      // webkitRelativePath (chỉ có khi chọn cả folder, dạng "TênFolder/con/cháu/ảnh.png") — cắt bỏ
+      // tên file ở cuối để lấy đường dẫn thư mục, giữ nguyên cấu trúc cây thư mục gốc trên máy.
+      const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+      const folderPath = relPath ? relPath.slice(0, Math.max(0, relPath.length - file.name.length - 1)) : undefined;
+      return {
+        id: makeId("tileset"),
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        imageDataUrl: dataUrl,
+        tileWidth,
+        tileHeight,
+        marginX,
+        marginY,
+        spacingX,
+        spacingY,
+        columns,
+        rows,
+        animations: {},
+        ...(folderPath ? { folderPath } : {}),
+      };
+    };
+
+    // decode ảnh theo từng đợt nhỏ thay vì Promise.all cả trăm ảnh cùng lúc — folder lớn với ảnh
+    // thật (nặng hơn nhiều so với ảnh test) dễ làm trình duyệt khựng vài giây nếu decode dồn dập
+    // không giới hạn số lượng cùng lúc.
+    const CONCURRENCY = 4;
+    const built: TilesetDef[] = [];
+    for (let i = 0; i < files.length; i += CONCURRENCY) {
+      const batch = files.slice(i, i + CONCURRENCY);
+      built.push(...(await Promise.all(batch.map(buildOne))));
+    }
+
     get().checkpoint();
     const last = built[built.length - 1];
     set({

@@ -6,6 +6,18 @@ import type { TilesetDef } from "../../types/map";
 export function useTilesetImages(tilesets: TilesetDef[]): Map<string, HTMLImageElement> {
   const cacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const [, setTick] = useState(0);
+  // gộp nhiều ảnh load xong gần nhau (vd import cả folboard, hàng chục ảnh xong cùng lúc) thành
+  // đúng 1 lần re-render/frame — thay vì mỗi ảnh xong lại setTick 1 lần, làm cả bảng tile-palette
+  // vẽ lại nhiều chục lần liên tiếp và gây lag ngay lúc vừa import xong.
+  const pendingTickRef = useRef(false);
+  const scheduleTick = () => {
+    if (pendingTickRef.current) return;
+    pendingTickRef.current = true;
+    requestAnimationFrame(() => {
+      pendingTickRef.current = false;
+      setTick((t) => t + 1);
+    });
+  };
 
   useEffect(() => {
     for (const ts of tilesets) {
@@ -14,7 +26,7 @@ export function useTilesetImages(tilesets: TilesetDef[]): Map<string, HTMLImageE
       // ảnh có thể là URL Supabase Storage (sau khi lưu Cloud) thay vì data: URL cục bộ — cần
       // crossOrigin để canvas không bị "tainted" nếu sau này có tính năng đọc lại pixel/export.
       img.crossOrigin = "anonymous";
-      img.onload = () => setTick((t) => t + 1);
+      img.onload = scheduleTick;
       img.src = ts.imageDataUrl;
       cacheRef.current.set(ts.id, img);
     }

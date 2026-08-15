@@ -90,12 +90,20 @@ export function MapCanvas() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // resize canvas 1 lần khi effect này chạy lại (đúng lúc stageWidth/stageHeight đổi thật) — KHÔNG
+    // đặt canvas.width/height mỗi frame trong loop bên dưới, vì gán lại (kể cả cùng giá trị) buộc
+    // trình duyệt xoá sạch + cấp phát lại toàn bộ backing store, rất tốn khi có animation chạy liên tục.
+    canvas.width = stageWidth;
+    canvas.height = stageHeight;
+
+    // tra tileset theo id bằng Map (O(1)) thay vì tilesets.find() (O(n)) gọi lại cho MỖI ô mỗi frame —
+    // với map nhiều ô + import cả folder (nhiều tileset), .find() lặp lại hàng chục nghìn lần/giây
+    // chính là nguyên nhân lag khi vừa import folder xong.
+    const tilesetsById = new Map(tilesets.map((ts) => [ts.id, ts] as const));
     const hasAnimatedTiles = tilesets.some((ts) => Object.keys(ts.animations).length > 0);
     const gridStroke = theme === "light" ? "rgba(0,0,0,0.07)" : "rgba(255,255,255,0.05)";
 
     const draw = (nowMs: number) => {
-      canvas.width = stageWidth;
-      canvas.height = stageHeight;
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, stageWidth, stageHeight);
 
@@ -106,7 +114,7 @@ export function MapCanvas() {
           for (let x = 0; x < width; x++) {
             const cell = layer.cells[y * width + x];
             if (!cell) continue;
-            const ts = tilesets.find((t) => t.id === cell.tilesetId);
+            const ts = tilesetsById.get(cell.tilesetId);
             const img = images.get(cell.tilesetId);
             if (ts && img && img.complete && img.naturalWidth > 0) {
               const drawIndex = resolveAnimatedTileIndex(ts, cell.tileIndex, nowMs);
