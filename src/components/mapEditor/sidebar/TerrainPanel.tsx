@@ -4,7 +4,7 @@ import { useTilesetImages } from "../useTilesetImages";
 import { TileThumbnail } from "./TileThumbnail";
 import { LayersPanel } from "./LayersPanel";
 import { AnimationEditorPopup } from "./AnimationEditorPopup";
-import type { TileAnimationFrame } from "../../../types/map";
+import type { TilesetDef, TileAnimationFrame } from "../../../types/map";
 
 const SWATCH_SIZE = 28;
 
@@ -16,6 +16,45 @@ interface DragCell {
 function sameTiles(a: number[] | undefined, b: number[]): boolean {
   if (!a || a.length !== b.length) return false;
   return a.every((v, i) => v === b[i]);
+}
+
+/** cây thư mục dựng từ TilesetDef.folderPath — mô phỏng đúng cấu trúc folder/subfolder lúc import
+ * cả folder, để hiện trong sidebar giống mở folder trên máy (mở/đóng từng cấp riêng). */
+interface TilesetFolderNode {
+  name: string;
+  path: string;
+  children: Map<string, TilesetFolderNode>;
+  tilesets: TilesetDef[];
+}
+
+function buildTilesetTree(list: TilesetDef[]): TilesetFolderNode {
+  const root: TilesetFolderNode = { name: "", path: "", children: new Map(), tilesets: [] };
+  for (const ts of list) {
+    if (!ts.folderPath) {
+      root.tilesets.push(ts);
+      continue;
+    }
+    const parts = ts.folderPath.split("/").filter(Boolean);
+    let node = root;
+    let acc = "";
+    for (const part of parts) {
+      acc = acc ? `${acc}/${part}` : part;
+      let child = node.children.get(part);
+      if (!child) {
+        child = { name: part, path: acc, children: new Map(), tilesets: [] };
+        node.children.set(part, child);
+      }
+      node = child;
+    }
+    node.tilesets.push(ts);
+  }
+  return root;
+}
+
+function countTilesetsInTree(node: TilesetFolderNode): number {
+  let n = node.tilesets.length;
+  for (const child of node.children.values()) n += countTilesetsInTree(child);
+  return n;
 }
 
 export function TerrainPanel() {
@@ -60,6 +99,17 @@ export function TerrainPanel() {
   const [pickingFrame, setPickingFrame] = useState(false);
 
   const editingTileset = editingAnim ? tilesets.find((t) => t.id === editingAnim.tilesetId) : undefined;
+
+  // folder nào đang thu gọn — mặc định mở hết (giống mở folder ra thấy ngay bên trong), bấm để đóng/mở riêng từng cấp
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const toggleFolder = (path: string) => {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -187,6 +237,73 @@ export function TerrainPanel() {
     return false;
   };
 
+  const renderTilesetBlock = (ts: TilesetDef) => {
+    const img = images.get(ts.id);
+    return (
+      <div key={ts.id} className="tileset-block">
+        <div className="tileset-block__header">
+          <span>
+            {ts.name} <em>({ts.columns}×{ts.rows})</em>
+          </span>
+          <button className="tileset-block__remove" title="Xoá tileset" onClick={() => removeTileset(ts.id)}>
+            ✕
+          </button>
+        </div>
+        <div className="tile-palette" style={{ gridTemplateColumns: `repeat(${ts.columns}, ${SWATCH_SIZE}px)` }}>
+          {Array.from({ length: ts.columns * ts.rows }).map((_, i) => {
+            const col = i % ts.columns;
+            const row = Math.floor(i / ts.columns);
+            const highlighted = isHighlighted(ts.id, col, row);
+            const hasAnimation = Boolean(ts.animations[i]?.length);
+            return (
+              <button
+                key={i}
+                type="button"
+                className={`tile-swatch${highlighted ? " tile-swatch--active" : ""}`}
+                style={{ width: SWATCH_SIZE, height: SWATCH_SIZE }}
+                title={hasAnimation ? `Tile #${i} — có animation` : `Tile #${i}`}
+                data-tileset-id={ts.id}
+                data-tile-index={i}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  setDragPurpose(pickingFrame && editingAnim && editingAnim.tilesetId === ts.id ? "frames" : "stamp");
+                  setDragTilesetId(ts.id);
+                  setDragStart({ col, row });
+                  setDragCur({ col, row });
+                }}
+              >
+                <TileThumbnail img={img} ts={ts} tileIndex={i} size={SWATCH_SIZE} />
+                {hasAnimation && <span className="tile-swatch__anim-badge">▶</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderFolderNode = (node: TilesetFolderNode): React.ReactNode => {
+    const collapsed = collapsedFolders.has(node.path);
+    return (
+      <div key={node.path} className="tileset-folder">
+        <button type="button" className="tileset-folder__header" onClick={() => toggleFolder(node.path)}>
+          <span className="tileset-folder__chevron">{collapsed ? "▸" : "▾"}</span>
+          <span className="tileset-folder__icon">📁</span>
+          <span className="tileset-folder__name">{node.name}</span>
+          <span className="tileset-folder__count">{countTilesetsInTree(node)}</span>
+        </button>
+        {!collapsed && (
+          <div className="tileset-folder__body">
+            {Array.from(node.children.values()).map((child) => renderFolderNode(child))}
+            {node.tilesets.map((ts) => renderTilesetBlock(ts))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const tilesetTree = buildTilesetTree(tilesets);
+
   return (
     <div className="map-sidebar__section">
       <LayersPanel />
@@ -244,53 +361,8 @@ export function TerrainPanel() {
 
       {tilesets.length === 0 && <p className="inspector__empty inspector__empty--inline">Chưa có tileset nào.</p>}
 
-      {tilesets.map((ts) => {
-        const img = images.get(ts.id);
-        return (
-          <div key={ts.id} className="tileset-block">
-            <div className="tileset-block__header">
-              <span>
-                {ts.name} <em>({ts.columns}×{ts.rows})</em>
-              </span>
-              <button className="tileset-block__remove" title="Xoá tileset" onClick={() => removeTileset(ts.id)}>
-                ✕
-              </button>
-            </div>
-            <div
-              className="tile-palette"
-              style={{ gridTemplateColumns: `repeat(${ts.columns}, ${SWATCH_SIZE}px)` }}
-            >
-              {Array.from({ length: ts.columns * ts.rows }).map((_, i) => {
-                const col = i % ts.columns;
-                const row = Math.floor(i / ts.columns);
-                const highlighted = isHighlighted(ts.id, col, row);
-                const hasAnimation = Boolean(ts.animations[i]?.length);
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    className={`tile-swatch${highlighted ? " tile-swatch--active" : ""}`}
-                    style={{ width: SWATCH_SIZE, height: SWATCH_SIZE }}
-                    title={hasAnimation ? `Tile #${i} — có animation` : `Tile #${i}`}
-                    data-tileset-id={ts.id}
-                    data-tile-index={i}
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      setDragPurpose(pickingFrame && editingAnim && editingAnim.tilesetId === ts.id ? "frames" : "stamp");
-                      setDragTilesetId(ts.id);
-                      setDragStart({ col, row });
-                      setDragCur({ col, row });
-                    }}
-                  >
-                    <TileThumbnail img={img} ts={ts} tileIndex={i} size={SWATCH_SIZE} />
-                    {hasAnimation && <span className="tile-swatch__anim-badge">▶</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+      {tilesetTree.tilesets.map((ts) => renderTilesetBlock(ts))}
+      {Array.from(tilesetTree.children.values()).map((child) => renderFolderNode(child))}
 
       {activeStamp && (
         <div className="map-toolrow">
