@@ -9,6 +9,7 @@ import { useUiStore } from "../../state/uiStore";
 import { saveCloudDocument } from "../../lib/cloudApi";
 import type { EditorMode } from "../../state/editorMode";
 import type { CloudDocumentRow } from "../../types/cloud";
+import type { MapDocument } from "../../types/map";
 
 const AUTOSAVE_DEBOUNCE_MS = 4000;
 
@@ -67,6 +68,16 @@ export function AppShell() {
   const handleMapCloudLoaded = (row: CloudDocumentRow) => {
     loadMap(row.data);
     setMapCloudId(row.id);
+
+    // Bài lưu từ TRƯỚC khi có Supabase Storage cho ảnh tileset vẫn còn base64 nặng nhét thẳng trong
+    // data jsonb — chính là lý do mở lên bị lag (tải + parse cả chục MB text 1 lúc). Lưu lại ngay
+    // (không đợi debounce autosave 4s) để đẩy ảnh lên Storage 1 lần — mở lại map này lần sau sẽ nhẹ
+    // và nhanh hẳn. Chạy nền, không chặn UI; lỗi thì bỏ qua vì autosave bình thường sẽ tự thử lại sau.
+    const doc = row.data as MapDocument;
+    const hasEmbeddedImages = doc.tilesets?.some((t) => t.imageDataUrl.startsWith("data:"));
+    if (user && hasEmbeddedImages) {
+      saveCloudDocument({ id: row.id, type: "map", name: doc.name, data: doc }).then(setMapCloudId).catch(() => {});
+    }
   };
 
   // CloudAccountMenu chỉ gọi onDeleted khi id trùng đúng cloudId đang mở — clear để lần "Lưu Cloud"
