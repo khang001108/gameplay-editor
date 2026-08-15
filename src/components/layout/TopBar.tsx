@@ -24,6 +24,7 @@ interface TopBarProps {
   cloudId: string | null;
   onCloudSaved: (id: string) => void;
   onCloudLoaded: (row: CloudDocumentRow) => void;
+  onCloudDeleted: (id: string) => void;
 }
 
 export function TopBar({
@@ -43,6 +44,7 @@ export function TopBar({
   cloudId,
   onCloudSaved,
   onCloudLoaded,
+  onCloudDeleted,
 }: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
@@ -121,7 +123,15 @@ export function TopBar({
 
       {/* Nằm ngoài .topbar__actions (vùng cuộn ngang) — luôn hiện, không bao giờ bị cuộn khuất khi màn hình hẹp */}
       <div className="topbar__pinned">
-        <CloudAccountMenu docType={cloudDocType} name={name} cloudId={cloudId} exportData={exportData} onSaved={onCloudSaved} onLoaded={onCloudLoaded} />
+        <CloudAccountMenu
+          docType={cloudDocType}
+          name={name}
+          cloudId={cloudId}
+          exportData={exportData}
+          onSaved={onCloudSaved}
+          onLoaded={onCloudLoaded}
+          onDeleted={onCloudDeleted}
+        />
         <ThemeToggle />
         <button
           className={`btn btn--icon topbar__drawer-toggle${inspectorOpen ? " btn--primary" : ""}`}

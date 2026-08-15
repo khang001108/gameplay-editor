@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "../../state/authStore";
 import { isSupabaseConfigured } from "../../lib/supabaseClient";
-import { saveCloudDocument, listCloudDocuments, loadCloudDocument } from "../../lib/cloudApi";
+import { saveCloudDocument, listCloudDocuments, loadCloudDocument, deleteCloudDocument } from "../../lib/cloudApi";
 import type { CloudDocType, CloudDocumentRow, CloudDocumentSummary } from "../../types/cloud";
 
 interface CloudAccountMenuProps {
@@ -11,11 +11,13 @@ interface CloudAccountMenuProps {
   exportData: () => unknown;
   onSaved: (id: string) => void;
   onLoaded: (row: CloudDocumentRow) => void;
+  /** gọi khi xoá đúng bản đang mở (id === cloudId) — cha cần clear cloudId để lần "Lưu Cloud" sau tạo dòng mới thay vì update dòng đã xoá */
+  onDeleted: (id: string) => void;
 }
 
 /** 1 nút "☁" duy nhất — gộp Đăng nhập + Lưu/Mở Cloud vào 1 panel đủ rộng, thay vì nhiều nút nhỏ
  * nhét trong dải cuộn ngang của TopBar (khó thao tác khi màn hình hẹp). */
-export function CloudAccountMenu({ docType, name, cloudId, exportData, onSaved, onLoaded }: CloudAccountMenuProps) {
+export function CloudAccountMenu({ docType, name, cloudId, exportData, onSaved, onLoaded, onDeleted }: CloudAccountMenuProps) {
   const user = useAuthStore((s) => s.user);
   const authLoading = useAuthStore((s) => s.loading);
   const authError = useAuthStore((s) => s.error);
@@ -34,6 +36,7 @@ export function CloudAccountMenu({ docType, name, cloudId, exportData, onSaved, 
   const [listLoading, setListLoading] = useState(false);
   const [docs, setDocs] = useState<CloudDocumentSummary[]>([]);
   const [cloudError, setCloudError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -86,6 +89,21 @@ export function CloudAccountMenu({ docType, name, cloudId, exportData, onSaved, 
       setOpen(false);
     } catch (e) {
       setCloudError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleDelete = async (id: string, docName: string) => {
+    if (!window.confirm(`Xoá bản lưu Cloud "${docName}"? Không thể hoàn tác.`)) return;
+    setDeletingId(id);
+    setCloudError(null);
+    try {
+      await deleteCloudDocument(id);
+      setDocs((prev) => prev.filter((d) => d.id !== id));
+      if (id === cloudId) onDeleted(id);
+    } catch (e) {
+      setCloudError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -162,10 +180,20 @@ export function CloudAccountMenu({ docType, name, cloudId, exportData, onSaved, 
                   {listLoading && <div className="cloud-menu__empty">Đang tải…</div>}
                   {!listLoading && docs.length === 0 && <div className="cloud-menu__empty">Chưa có bản lưu nào.</div>}
                   {docs.map((d) => (
-                    <button key={d.id} className="cloud-menu__item" onClick={() => handlePick(d.id)}>
-                      <span className="cloud-menu__item-name">{d.name}</span>
-                      <span className="cloud-menu__item-time">{new Date(d.updated_at).toLocaleString("vi-VN")}</span>
-                    </button>
+                    <div key={d.id} className="cloud-menu__item">
+                      <button className="cloud-menu__item-main" onClick={() => handlePick(d.id)}>
+                        <span className="cloud-menu__item-name">{d.name}</span>
+                        <span className="cloud-menu__item-time">{new Date(d.updated_at).toLocaleString("vi-VN")}</span>
+                      </button>
+                      <button
+                        className="cloud-menu__item-delete"
+                        title="Xoá bản lưu này"
+                        disabled={deletingId === d.id}
+                        onClick={() => handleDelete(d.id, d.name)}
+                      >
+                        {deletingId === d.id ? "…" : "✕"}
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}

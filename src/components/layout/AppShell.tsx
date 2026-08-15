@@ -69,6 +69,11 @@ export function AppShell() {
     setMapCloudId(row.id);
   };
 
+  // CloudAccountMenu chỉ gọi onDeleted khi id trùng đúng cloudId đang mở — clear để lần "Lưu Cloud"
+  // sau tạo dòng mới, không cố update lại dòng đã xoá (autosave cũng tự dừng vì mapCloudId/graphCloudId rỗng).
+  const handleMapCloudDeleted = () => setMapCloudId(null);
+  const handleGraphCloudDeleted = () => setGraphCloudId(null);
+
   // Autosave lên Cloud: chỉ chạy khi đã đăng nhập VÀ document đã từng "Lưu Cloud" thủ công 1 lần
   // (có cloudId) — chờ người dùng ngừng sửa 4s rồi mới lưu, tránh gọi API liên tục lúc đang gõ/vẽ.
   const mapAutosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,6 +119,7 @@ export function AppShell() {
           cloudId: mapCloudId,
           onCloudSaved: setMapCloudId,
           onCloudLoaded: handleMapCloudLoaded,
+          onCloudDeleted: handleMapCloudDeleted,
         }
       : {
           name: graphName,
@@ -130,6 +136,7 @@ export function AppShell() {
           cloudId: graphCloudId,
           onCloudSaved: setGraphCloudId,
           onCloudLoaded: handleGraphCloudLoaded,
+          onCloudDeleted: handleGraphCloudDeleted,
         };
 
   return (
