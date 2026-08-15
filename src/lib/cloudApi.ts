@@ -9,6 +9,18 @@ function requireClient() {
   return supabase;
 }
 
+/** Đợi session sẵn sàng (và tự refresh access token nếu sắp hết hạn) TRƯỚC khi gọi PostgREST.
+ * Lúc mới load/reload trang, `authStore` set `user` ngay khi getSession() resolve — nhưng nếu code
+ * gọi API (vd bấm "Mở Cloud") đúng lúc access token vừa hết hạn và client chưa kịp tự làm mới xong,
+ * RLS sẽ âm thầm coi như chưa đăng nhập và trả về danh sách RỖNG (không báo lỗi gì) — giống hệt
+ * "vẫn hiện đăng nhập nhưng không thấy dữ liệu Cloud" cho tới khi đăng xuất/đăng nhập lại (tạo
+ * session mới hoàn toàn). Gọi getSession() ở đây đảm bảo token luôn mới trước mỗi query. */
+async function requireSession(client: NonNullable<typeof supabase>) {
+  const { data, error } = await client.auth.getSession();
+  if (error || !data.session) throw new Error("Cần đăng nhập trước khi thao tác với Cloud.");
+  return data.session;
+}
+
 // cache trong phiên hiện tại: tilesetId đã upload lên Storage rồi thì khỏi upload lại mỗi lần autosave
 // (ảnh tileset gần như không đổi sau khi import, re-upload lại nguyên khối mỗi 4s là phí băng thông).
 const uploadedTilesetUrlCache = new Map<string, string>();
@@ -61,6 +73,7 @@ export async function saveCloudDocument(params: {
 
 export async function listCloudDocuments(type: CloudDocType): Promise<CloudDocumentSummary[]> {
   const client = requireClient();
+  await requireSession(client);
   const { data, error } = await client
     .from("documents")
     .select("id, name, updated_at")
@@ -72,6 +85,7 @@ export async function listCloudDocuments(type: CloudDocType): Promise<CloudDocum
 
 export async function loadCloudDocument(id: string): Promise<CloudDocumentRow> {
   const client = requireClient();
+  await requireSession(client);
   const { data, error } = await client.from("documents").select("*").eq("id", id).single();
   if (error) throw new Error(error.message);
   return data as CloudDocumentRow;
@@ -79,6 +93,7 @@ export async function loadCloudDocument(id: string): Promise<CloudDocumentRow> {
 
 export async function deleteCloudDocument(id: string): Promise<void> {
   const client = requireClient();
+  await requireSession(client);
 
   // xoá document map thì dọn luôn ảnh tileset đã upload trong Storage, tránh rác tồn lại vĩnh viễn
   const { data: row } = await client.from("documents").select("type, data").eq("id", id).single();
