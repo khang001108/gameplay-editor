@@ -10,11 +10,14 @@ export function TileThumbnail({
   ts,
   tileIndex,
   size,
+  loading,
 }: {
   img: HTMLImageElement | undefined;
   ts: TilesetDef;
   tileIndex: number;
   size: number;
+  /** true khi ảnh gốc của tileset này đang tải (folder vừa mở ra) — hiện skeleton thay vì ô trống trơn */
+  loading?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -31,5 +34,5 @@ export function TileThumbnail({
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
   }, [img, img?.complete, ts, tileIndex, size]);
 
-  return <canvas ref={canvasRef} width={size} height={size} className="tile-swatch__canvas" />;
+  return <canvas ref={canvasRef} width={size} height={size} className={`tile-swatch__canvas${loading ? " tile-swatch__canvas--loading" : ""}`} />;
 }

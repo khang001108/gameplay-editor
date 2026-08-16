@@ -52,6 +52,10 @@ interface MapState {
   activeTool: MapTool;
   activeStamp: TileStamp | null;
   eraserSize: 1 | 2 | 3;
+  /** tăng lên mỗi khi cả document được thay bằng cái khác (load Cloud/JSON, "New") — KHÔNG tăng lúc
+   * import thêm tileset hay sửa nội dung. Sidebar tileset dùng để biết "đây là document vừa mở" nên
+   * tự đóng hết folder lại (không tải hết ảnh ngay), khác với folder vừa import trong phiên hiện tại. */
+  docVersion: number;
   /** building/unit đang "chọn sẵn" từ palette, chờ chạm/click vào canvas để đặt — dùng chung cho chuột lẫn cảm ứng
    * (thay cho kéo-thả HTML5 vốn không hoạt động trên di động). */
   pendingPlacement: { defType: string } | null;
@@ -153,6 +157,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   activeTool: "select",
   activeStamp: null,
   eraserSize: 1,
+  docVersion: 0,
   pendingPlacement: null,
   armPlacement: (defType) => set({ pendingPlacement: { defType }, activeTool: "place-object", selected: null }),
   cancelPlacement: () => set((s) => (s.activeTool === "place-object" ? { pendingPlacement: null, activeTool: "select" } : {})),
@@ -584,6 +589,7 @@ export const useMapStore = create<MapState>((set, get) => ({
       pendingPlacement: null,
       lastLoadWarnings: result.warnings,
       cloudId: null,
+      docVersion: get().docVersion + 1,
       past: [],
       future: [],
     });
@@ -607,6 +613,7 @@ export const useMapStore = create<MapState>((set, get) => ({
       pendingPlacement: null,
       lastLoadWarnings: [],
       cloudId: null,
+      docVersion: get().docVersion + 1,
       past: [],
       future: [],
     });

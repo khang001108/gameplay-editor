@@ -865,6 +865,10 @@ select.field-input {
   font-family: var(--font-mono);
   font-size: 10px;
 }
+.tileset-block__loading {
+  font-size: 10px;
+  animation: tileset-pulse 1.1s ease-in-out infinite;
+}
 .tileset-block__remove {
   background: transparent;
   border: none;
@@ -914,11 +918,20 @@ select.field-input {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.tileset-folder__loading {
+  flex-shrink: 0;
+  font-size: 10px;
+  animation: tileset-pulse 1.1s ease-in-out infinite;
+}
 .tileset-folder__count {
   flex-shrink: 0;
   font-size: 10px;
   color: var(--text-faint);
   font-family: var(--font-mono);
+}
+@keyframes tileset-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 .tileset-folder__body {
   display: flex;
@@ -971,6 +984,16 @@ select.field-input {
   height: 100%;
   image-rendering: pixelated;
   pointer-events: none;
+}
+.tile-swatch__canvas--loading {
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--bg-panel-raised) 25%, var(--bg-panel) 50%, var(--bg-panel-raised) 75%);
+  background-size: 200% 100%;
+  animation: tile-skeleton 1.2s ease-in-out infinite;
+}
+@keyframes tile-skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .map-toolrow {

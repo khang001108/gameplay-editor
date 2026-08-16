@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMapStore } from "../../../state/mapStore";
 import { useTilesetImages } from "../useTilesetImages";
 import { TileThumbnail } from "./TileThumbnail";
@@ -57,6 +57,21 @@ function countTilesetsInTree(node: TilesetFolderNode): number {
   return n;
 }
 
+function collectTilesetIds(node: TilesetFolderNode, out: Set<string>) {
+  for (const ts of node.tilesets) out.add(ts.id);
+  for (const child of node.children.values()) collectTilesetIds(child, out);
+}
+
+/** Tileset nào cần bắt đầu tải ảnh NGAY — chính là tileset đang thật sự hiện ra trong sidebar: nằm
+ * ngoài mọi folder (luôn hiện), hoặc nằm trong 1 chuỗi folder đang mở hết từ gốc tới nó. Folder đang
+ * đóng thì tileset bên trong (kể cả folder con lồng sâu hơn) chưa cần tải — đúng thứ mà nó hiện ra. */
+function collectVisibleTilesetIds(node: TilesetFolderNode, collapsedFolders: ReadonlySet<string>, out: Set<string>) {
+  for (const ts of node.tilesets) out.add(ts.id);
+  for (const child of node.children.values()) {
+    if (!collapsedFolders.has(child.path)) collectVisibleTilesetIds(child, collapsedFolders, out);
+  }
+}
+
 export function TerrainPanel() {
   const tilesets = useMapStore((s) => s.tilesets);
   const activeStamp = useMapStore((s) => s.activeStamp);
@@ -66,8 +81,37 @@ export function TerrainPanel() {
   const setActiveStamp = useMapStore((s) => s.setActiveStamp);
   const setTileAnimationFrames = useMapStore((s) => s.setTileAnimationFrames);
   const setTileAnimationFramesForMany = useMapStore((s) => s.setTileAnimationFramesForMany);
+  const docVersion = useMapStore((s) => s.docVersion);
 
-  const images = useTilesetImages(tilesets);
+  // folder nào đang thu gọn — bấm để đóng/mở riêng từng cấp. Folder vừa import trong phiên hiện tại
+  // thì mở sẵn (thấy ngay); còn folder đến từ 1 document vừa MỞ (Load/Cloud) thì mặc định đóng hết —
+  // xem effect theo docVersion bên dưới — để không tự tải hết ảnh trong folder ngay khi vừa mở map.
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const toggleFolder = (path: string) => {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
+  const tilesetTree = useMemo(() => buildTilesetTree(tilesets), [tilesets]);
+
+  useEffect(() => {
+    if (docVersion === 0) return; // lần mount đầu tiên (chưa từng load gì) — khỏi cần đóng gì cả
+    setCollapsedFolders(new Set(Array.from(tilesetTree.children.values()).map((n) => n.path)));
+    // chỉ chạy đúng lúc docVersion đổi (document vừa được thay hẳn) — không phụ thuộc tilesetTree,
+    // vì lúc người dùng tự mở/đóng folder hay import thêm tileset thì KHÔNG được tự đóng lại hết.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docVersion]);
+
+  const visibleTilesetIds = useMemo(() => {
+    const ids = new Set<string>();
+    collectVisibleTilesetIds(tilesetTree, collapsedFolders, ids);
+    return ids;
+  }, [tilesetTree, collapsedFolders]);
+  const { images, isLoading } = useTilesetImages(tilesets, visibleTilesetIds);
 
   const [tileW, setTileW] = useState(32);
   const [tileH, setTileH] = useState(32);
@@ -99,17 +143,6 @@ export function TerrainPanel() {
   const [pickingFrame, setPickingFrame] = useState(false);
 
   const editingTileset = editingAnim ? tilesets.find((t) => t.id === editingAnim.tilesetId) : undefined;
-
-  // folder nào đang thu gọn — mặc định mở hết (giống mở folder ra thấy ngay bên trong), bấm để đóng/mở riêng từng cấp
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
-  const toggleFolder = (path: string) => {
-    setCollapsedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
-  };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -239,11 +272,20 @@ export function TerrainPanel() {
 
   const renderTilesetBlock = (ts: TilesetDef) => {
     const img = images.get(ts.id);
+    const loading = isLoading(ts.id);
     return (
       <div key={ts.id} className="tileset-block">
         <div className="tileset-block__header">
           <span>
             {ts.name} <em>({ts.columns}×{ts.rows})</em>
+            {loading && (
+              <>
+                {" "}
+                <span className="tileset-block__loading" title="Đang tải ảnh…">
+                  ⏳
+                </span>
+              </>
+            )}
           </span>
           <button className="tileset-block__remove" title="Xoá tileset" onClick={() => removeTileset(ts.id)}>
             ✕
@@ -272,7 +314,7 @@ export function TerrainPanel() {
                   setDragCur({ col, row });
                 }}
               >
-                <TileThumbnail img={img} ts={ts} tileIndex={i} size={SWATCH_SIZE} />
+                <TileThumbnail img={img} ts={ts} tileIndex={i} size={SWATCH_SIZE} loading={loading} />
                 {hasAnimation && <span className="tile-swatch__anim-badge">▶</span>}
               </button>
             );
@@ -284,12 +326,24 @@ export function TerrainPanel() {
 
   const renderFolderNode = (node: TilesetFolderNode): React.ReactNode => {
     const collapsed = collapsedFolders.has(node.path);
+    // chỉ tính đang tải khi folder đang MỞ — đóng thì chưa yêu cầu tải gì cả, không có gì để chờ
+    let anyLoading = false;
+    if (!collapsed) {
+      const idsInNode = new Set<string>();
+      collectTilesetIds(node, idsInNode);
+      anyLoading = Array.from(idsInNode).some((id) => isLoading(id));
+    }
     return (
       <div key={node.path} className="tileset-folder">
         <button type="button" className="tileset-folder__header" onClick={() => toggleFolder(node.path)}>
           <span className="tileset-folder__chevron">{collapsed ? "▸" : "▾"}</span>
           <span className="tileset-folder__icon">📁</span>
           <span className="tileset-folder__name">{node.name}</span>
+          {anyLoading && (
+            <span className="tileset-folder__loading" title="Đang tải ảnh trong folder này…">
+              ⏳
+            </span>
+          )}
           <span className="tileset-folder__count">{countTilesetsInTree(node)}</span>
         </button>
         {!collapsed && (
@@ -301,8 +355,6 @@ export function TerrainPanel() {
       </div>
     );
   };
-
-  const tilesetTree = buildTilesetTree(tilesets);
 
   return (
     <div className="map-sidebar__section">

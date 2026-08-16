@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMapStore } from "../../../state/mapStore";
 import type { MapTool } from "../../../state/mapStore";
 import { getMapObjectDefinition } from "../../../mapDefinitions";
@@ -79,7 +79,19 @@ export function MapCanvas() {
   const stageRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const images = useTilesetImages(tilesets);
+
+  // canvas chỉ cần tải ảnh của tileset THẬT SỰ đang được dùng trên map (ô nào đó đã vẽ tile của nó)
+  // — không cần đợi/quan tâm sidebar đang mở folder nào, map vẫn phải hiện đúng mọi tile đã vẽ.
+  const usedTilesetIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const layer of layers) {
+      for (const cell of layer.cells) {
+        if (cell) ids.add(cell.tilesetId);
+      }
+    }
+    return ids;
+  }, [layers]);
+  const { images } = useTilesetImages(tilesets, usedTilesetIds);
 
   const stageWidth = width * effectiveTileSize;
   const stageHeight = height * effectiveTileSize;
