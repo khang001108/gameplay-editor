@@ -72,6 +72,113 @@ function collectVisibleTilesetIds(node: TilesetFolderNode, collapsedFolders: Rea
   }
 }
 
+interface SharedTileGridProps {
+  images: Map<string, HTMLImageElement>;
+  isLoading: (id: string) => boolean;
+  isHighlighted: (tsId: string, col: number, row: number) => boolean;
+  onRemove: (id: string) => void;
+  onSwatchPointerDown: (ts: TilesetDef, col: number, row: number) => void;
+}
+
+function TilesetBlockView({ ts, images, isLoading, isHighlighted, onRemove, onSwatchPointerDown }: SharedTileGridProps & { ts: TilesetDef }) {
+  const img = images.get(ts.id);
+  const loading = isLoading(ts.id);
+
+  return (
+    <div className="tileset-block">
+      <div className="tileset-block__header">
+        <span>
+          {ts.name} <em>({ts.columns}×{ts.rows})</em>
+          {loading && (
+            <>
+              {" "}
+              <span className="tileset-block__loading" title="Đang tải ảnh…">
+                ⏳
+              </span>
+            </>
+          )}
+        </span>
+        <button className="tileset-block__remove" title="Xoá tileset" onClick={() => onRemove(ts.id)}>
+          ✕
+        </button>
+      </div>
+      <div className="tile-palette" style={{ gridTemplateColumns: `repeat(${ts.columns}, ${SWATCH_SIZE}px)` }}>
+        {Array.from({ length: ts.columns * ts.rows }).map((_, i) => {
+          const col = i % ts.columns;
+          const row = Math.floor(i / ts.columns);
+          const highlighted = isHighlighted(ts.id, col, row);
+          const hasAnimation = Boolean(ts.animations[i]?.length);
+          return (
+            <button
+              key={i}
+              type="button"
+              className={`tile-swatch${highlighted ? " tile-swatch--active" : ""}`}
+              style={{ width: SWATCH_SIZE, height: SWATCH_SIZE }}
+              title={hasAnimation ? `Tile #${i} — có animation` : `Tile #${i}`}
+              data-tileset-id={ts.id}
+              data-tile-index={i}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                onSwatchPointerDown(ts, col, row);
+              }}
+            >
+              <TileThumbnail img={img} ts={ts} tileIndex={i} size={SWATCH_SIZE} loading={loading} />
+              {hasAnimation && <span className="tile-swatch__anim-badge">▶</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TilesetFolderView({
+  node,
+  collapsedFolders,
+  toggleFolder,
+  ...gridProps
+}: SharedTileGridProps & {
+  node: TilesetFolderNode;
+  collapsedFolders: ReadonlySet<string>;
+  toggleFolder: (path: string) => void;
+}) {
+  const { isLoading } = gridProps;
+  const collapsed = collapsedFolders.has(node.path);
+
+  let anyLoading = false;
+  if (!collapsed) {
+    const idsInNode = new Set<string>();
+    collectTilesetIds(node, idsInNode);
+    anyLoading = Array.from(idsInNode).some((id) => isLoading(id));
+  }
+
+  return (
+    <div className="tileset-folder">
+      <button type="button" className="tileset-folder__header" onClick={() => toggleFolder(node.path)}>
+        <span className="tileset-folder__chevron">{collapsed ? "▸" : "▾"}</span>
+        <span className="tileset-folder__icon">📁</span>
+        <span className="tileset-folder__name">{node.name}</span>
+        {anyLoading && (
+          <span className="tileset-folder__loading" title="Đang tải ảnh trong folder này…">
+            ⏳
+          </span>
+        )}
+        <span className="tileset-folder__count">{countTilesetsInTree(node)}</span>
+      </button>
+      {!collapsed && (
+        <div className="tileset-folder__body">
+          {Array.from(node.children.values()).map((child) => (
+            <TilesetFolderView key={child.path} node={child} collapsedFolders={collapsedFolders} toggleFolder={toggleFolder} {...gridProps} />
+          ))}
+          {node.tilesets.map((ts) => (
+            <TilesetBlockView key={ts.id} ts={ts} {...gridProps} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TerrainPanel() {
   const tilesets = useMapStore((s) => s.tilesets);
   const activeStamp = useMapStore((s) => s.activeStamp);
@@ -270,91 +377,14 @@ export function TerrainPanel() {
     return false;
   };
 
-  const renderTilesetBlock = (ts: TilesetDef) => {
-    const img = images.get(ts.id);
-    const loading = isLoading(ts.id);
-    return (
-      <div key={ts.id} className="tileset-block">
-        <div className="tileset-block__header">
-          <span>
-            {ts.name} <em>({ts.columns}×{ts.rows})</em>
-            {loading && (
-              <>
-                {" "}
-                <span className="tileset-block__loading" title="Đang tải ảnh…">
-                  ⏳
-                </span>
-              </>
-            )}
-          </span>
-          <button className="tileset-block__remove" title="Xoá tileset" onClick={() => removeTileset(ts.id)}>
-            ✕
-          </button>
-        </div>
-        <div className="tile-palette" style={{ gridTemplateColumns: `repeat(${ts.columns}, ${SWATCH_SIZE}px)` }}>
-          {Array.from({ length: ts.columns * ts.rows }).map((_, i) => {
-            const col = i % ts.columns;
-            const row = Math.floor(i / ts.columns);
-            const highlighted = isHighlighted(ts.id, col, row);
-            const hasAnimation = Boolean(ts.animations[i]?.length);
-            return (
-              <button
-                key={i}
-                type="button"
-                className={`tile-swatch${highlighted ? " tile-swatch--active" : ""}`}
-                style={{ width: SWATCH_SIZE, height: SWATCH_SIZE }}
-                title={hasAnimation ? `Tile #${i} — có animation` : `Tile #${i}`}
-                data-tileset-id={ts.id}
-                data-tile-index={i}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  setDragPurpose(pickingFrame && editingAnim && editingAnim.tilesetId === ts.id ? "frames" : "stamp");
-                  setDragTilesetId(ts.id);
-                  setDragStart({ col, row });
-                  setDragCur({ col, row });
-                }}
-              >
-                <TileThumbnail img={img} ts={ts} tileIndex={i} size={SWATCH_SIZE} loading={loading} />
-                {hasAnimation && <span className="tile-swatch__anim-badge">▶</span>}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
+  const handleSwatchPointerDown = (ts: TilesetDef, col: number, row: number) => {
+    setDragPurpose(pickingFrame && editingAnim && editingAnim.tilesetId === ts.id ? "frames" : "stamp");
+    setDragTilesetId(ts.id);
+    setDragStart({ col, row });
+    setDragCur({ col, row });
   };
 
-  const renderFolderNode = (node: TilesetFolderNode): React.ReactNode => {
-    const collapsed = collapsedFolders.has(node.path);
-    // chỉ tính đang tải khi folder đang MỞ — đóng thì chưa yêu cầu tải gì cả, không có gì để chờ
-    let anyLoading = false;
-    if (!collapsed) {
-      const idsInNode = new Set<string>();
-      collectTilesetIds(node, idsInNode);
-      anyLoading = Array.from(idsInNode).some((id) => isLoading(id));
-    }
-    return (
-      <div key={node.path} className="tileset-folder">
-        <button type="button" className="tileset-folder__header" onClick={() => toggleFolder(node.path)}>
-          <span className="tileset-folder__chevron">{collapsed ? "▸" : "▾"}</span>
-          <span className="tileset-folder__icon">📁</span>
-          <span className="tileset-folder__name">{node.name}</span>
-          {anyLoading && (
-            <span className="tileset-folder__loading" title="Đang tải ảnh trong folder này…">
-              ⏳
-            </span>
-          )}
-          <span className="tileset-folder__count">{countTilesetsInTree(node)}</span>
-        </button>
-        {!collapsed && (
-          <div className="tileset-folder__body">
-            {Array.from(node.children.values()).map((child) => renderFolderNode(child))}
-            {node.tilesets.map((ts) => renderTilesetBlock(ts))}
-          </div>
-        )}
-      </div>
-    );
-  };
+  const gridProps: SharedTileGridProps = { images, isLoading, isHighlighted, onRemove: removeTileset, onSwatchPointerDown: handleSwatchPointerDown };
 
   return (
     <div className="map-sidebar__section">
@@ -413,8 +443,12 @@ export function TerrainPanel() {
 
       {tilesets.length === 0 && <p className="inspector__empty inspector__empty--inline">Chưa có tileset nào.</p>}
 
-      {tilesetTree.tilesets.map((ts) => renderTilesetBlock(ts))}
-      {Array.from(tilesetTree.children.values()).map((child) => renderFolderNode(child))}
+      {tilesetTree.tilesets.map((ts) => (
+        <TilesetBlockView key={ts.id} ts={ts} {...gridProps} />
+      ))}
+      {Array.from(tilesetTree.children.values()).map((child) => (
+        <TilesetFolderView key={child.path} node={child} collapsedFolders={collapsedFolders} toggleFolder={toggleFolder} {...gridProps} />
+      ))}
 
       {activeStamp && (
         <div className="map-toolrow">

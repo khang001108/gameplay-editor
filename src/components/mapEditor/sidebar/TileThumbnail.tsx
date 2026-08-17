@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react";
+import type { CSSProperties } from "react";
 import type { TilesetDef } from "../../../types/map";
 import { tileSourceRect } from "../tileGeometry";
 
-/** Vẽ đúng 1 tile bằng <canvas> crop trực tiếp từ ảnh gốc — không dùng CSS background-size,
- * vì background-size ép ảnh co giãn theo kích thước tính toán nên hay bị lệch/nhoè khi ảnh
- * không chia hết cho tileWidth/tileHeight (đây là nguyên nhân bảng chọn tile từng bị "lung tung"). */
+/** Vẽ đúng 1 tile bằng CSS background-position crop từ ảnh gốc (KHÔNG dùng <canvas>+drawImage nữa —
+ * mỗi canvas cần 1 context + 1 draw call + 1 effect riêng, mở 1 folder cả nghìn tile là cả nghìn
+ * canvas dựng cùng lúc, chính là nguyên nhân đơ trang). background-size/position tính bằng PIXEL
+ * tuyệt đối (không phải %, không phải "cover") nên không bị lệch/nhoè dù ảnh không chia hết cho
+ * tileWidth/tileHeight — cùng công thức toạ độ với canvas cũ (tileSourceRect), chỉ đổi cách vẽ. */
 export function TileThumbnail({
   img,
   ts,
@@ -19,20 +21,21 @@ export function TileThumbnail({
   /** true khi ảnh gốc của tileset này đang tải (folder vừa mở ra) — hiện skeleton thay vì ô trống trơn */
   loading?: boolean;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const ready = img && img.complete && img.naturalWidth > 0;
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !img || !img.complete || img.naturalWidth === 0) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    canvas.width = size;
-    canvas.height = size;
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, size, size);
+  let style: CSSProperties = { width: size, height: size };
+  if (ready) {
     const { sx, sy, sw, sh } = tileSourceRect(ts, tileIndex);
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
-  }, [img, img?.complete, ts, tileIndex, size]);
+    const scaleX = size / sw;
+    const scaleY = size / sh;
+    style = {
+      ...style,
+      backgroundImage: `url(${img.src})`,
+      backgroundRepeat: "no-repeat",
+      backgroundSize: `${img.naturalWidth * scaleX}px ${img.naturalHeight * scaleY}px`,
+      backgroundPosition: `-${sx * scaleX}px -${sy * scaleY}px`,
+    };
+  }
 
-  return <canvas ref={canvasRef} width={size} height={size} className={`tile-swatch__canvas${loading ? " tile-swatch__canvas--loading" : ""}`} />;
+  return <div className={`tile-swatch__canvas${loading ? " tile-swatch__canvas--loading" : ""}`} style={style} />;
 }
