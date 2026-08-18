@@ -1,10 +1,6 @@
 import type { FieldValue } from "./graph";
 import type { MapObjectKind } from "./mapDefs";
 
-/** 1 bộ ảnh tileset do người dùng import — lúc mới import/đang sửa cục bộ, `imageDataUrl` là data: URL
- * (base64) để "Export" ra JSON tự chứa đủ, mở lại ở máy khác không cần kèm file ảnh riêng. Sau khi
- * "Lưu Cloud", ảnh được upload lên Supabase Storage và field này đổi thành URL public trỏ tới đó
- * (tránh nhét base64 nặng vào cột jsonb) — xem resolveMapImagesForCloud() trong lib/cloudApi.ts. */
 export interface TileAnimationFrame {
   /** tileIndex trong cùng tileset sẽ hiện tại frame này */
   tileIndex: number;
@@ -12,6 +8,10 @@ export interface TileAnimationFrame {
   duration: number;
 }
 
+/** 1 bộ ảnh tileset do người dùng import — lúc mới import/đang sửa cục bộ, `imageDataUrl` là data: URL
+ * (base64) để "Export" ra JSON tự chứa đủ, mở lại ở máy khác không cần kèm file ảnh riêng. Sau khi
+ * "Lưu Cloud", ảnh được upload lên Supabase Storage và field này đổi thành URL public trỏ tới đó
+ * (tránh nhét base64 nặng vào cột jsonb) — xem resolveMapImagesForCloud() trong lib/cloudApi.ts. */
 export interface TilesetDef {
   id: string;
   name: string;
@@ -29,9 +29,6 @@ export interface TilesetDef {
   /** animation gắn theo tileIndex "gốc" — hễ terrain nào đặt tile này sẽ tự động chạy qua các frame,
    * giống Tile Animation Editor trong Tiled. Key là tileIndex (number), rỗng = tile không animate. */
   animations: Record<number, TileAnimationFrame[]>;
-  /** đường dẫn thư mục (phân cách bằng "/") lúc import cả folder — vd "Tileset/Terrain" — dùng để
-   * hiện dạng cây thư mục trong sidebar, giống mở folder trên máy. Không có = import 1 ảnh lẻ. */
-  folderPath?: string;
 }
 
 export interface TerrainCellRef {

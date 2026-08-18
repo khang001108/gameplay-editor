@@ -52,10 +52,6 @@ interface MapState {
   activeTool: MapTool;
   activeStamp: TileStamp | null;
   eraserSize: 1 | 2 | 3;
-  /** tăng lên mỗi khi cả document được thay bằng cái khác (load Cloud/JSON, "New") — KHÔNG tăng lúc
-   * import thêm tileset hay sửa nội dung. Sidebar tileset dùng để biết "đây là document vừa mở" nên
-   * tự đóng hết folder lại (không tải hết ảnh ngay), khác với folder vừa import trong phiên hiện tại. */
-  docVersion: number;
   /** building/unit đang "chọn sẵn" từ palette, chờ chạm/click vào canvas để đặt — dùng chung cho chuột lẫn cảm ứng
    * (thay cho kéo-thả HTML5 vốn không hoạt động trên di động). */
   pendingPlacement: { defType: string } | null;
@@ -81,16 +77,6 @@ interface MapState {
 
   importTileset: (
     file: File,
-    tileWidth: number,
-    tileHeight: number,
-    marginX: number,
-    marginY: number,
-    spacingX: number,
-    spacingY: number
-  ) => Promise<void>;
-  /** import nhiều ảnh cùng lúc (vd chọn cả 1 folder) — mỗi ảnh thành 1 tileset riêng, chung 1 mốc undo */
-  importTilesetFiles: (
-    files: File[],
     tileWidth: number,
     tileHeight: number,
     marginX: number,
@@ -157,7 +143,6 @@ export const useMapStore = create<MapState>((set, get) => ({
   activeTool: "select",
   activeStamp: null,
   eraserSize: 1,
-  docVersion: 0,
   pendingPlacement: null,
   armPlacement: (defType) => set({ pendingPlacement: { defType }, activeTool: "place-object", selected: null }),
   cancelPlacement: () => set((s) => (s.activeTool === "place-object" ? { pendingPlacement: null, activeTool: "select" } : {})),
@@ -264,53 +249,28 @@ export const useMapStore = create<MapState>((set, get) => ({
   setTileSize: (tileSize) => set({ tileSize: Math.max(4, Math.round(tileSize)) }),
 
   importTileset: async (file, tileWidth, tileHeight, marginX, marginY, spacingX, spacingY) => {
-    await get().importTilesetFiles([file], tileWidth, tileHeight, marginX, marginY, spacingX, spacingY);
-  },
-
-  importTilesetFiles: async (files, tileWidth, tileHeight, marginX, marginY, spacingX, spacingY) => {
-    if (files.length === 0) return;
-
-    const buildOne = async (file: File): Promise<TilesetDef> => {
-      const dataUrl = await readFileAsDataURL(file);
-      const img = await loadImage(dataUrl);
-      const columns = Math.max(1, Math.floor((img.width - marginX + spacingX) / (tileWidth + spacingX)));
-      const rows = Math.max(1, Math.floor((img.height - marginY + spacingY) / (tileHeight + spacingY)));
-      // webkitRelativePath (chỉ có khi chọn cả folder, dạng "TênFolder/con/cháu/ảnh.png") — cắt bỏ
-      // tên file ở cuối để lấy đường dẫn thư mục, giữ nguyên cấu trúc cây thư mục gốc trên máy.
-      const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-      const folderPath = relPath ? relPath.slice(0, Math.max(0, relPath.length - file.name.length - 1)) : undefined;
-      return {
-        id: makeId("tileset"),
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        imageDataUrl: dataUrl,
-        tileWidth,
-        tileHeight,
-        marginX,
-        marginY,
-        spacingX,
-        spacingY,
-        columns,
-        rows,
-        animations: {},
-        ...(folderPath ? { folderPath } : {}),
-      };
-    };
-
-    // decode ảnh theo từng đợt nhỏ thay vì Promise.all cả trăm ảnh cùng lúc — folder lớn với ảnh
-    // thật (nặng hơn nhiều so với ảnh test) dễ làm trình duyệt khựng vài giây nếu decode dồn dập
-    // không giới hạn số lượng cùng lúc.
-    const CONCURRENCY = 4;
-    const built: TilesetDef[] = [];
-    for (let i = 0; i < files.length; i += CONCURRENCY) {
-      const batch = files.slice(i, i + CONCURRENCY);
-      built.push(...(await Promise.all(batch.map(buildOne))));
-    }
-
     get().checkpoint();
-    const last = built[built.length - 1];
+    const dataUrl = await readFileAsDataURL(file);
+    const img = await loadImage(dataUrl);
+    const columns = Math.max(1, Math.floor((img.width - marginX + spacingX) / (tileWidth + spacingX)));
+    const rows = Math.max(1, Math.floor((img.height - marginY + spacingY) / (tileHeight + spacingY)));
+    const tileset: TilesetDef = {
+      id: makeId("tileset"),
+      name: file.name.replace(/\.[^/.]+$/, ""),
+      imageDataUrl: dataUrl,
+      tileWidth,
+      tileHeight,
+      marginX,
+      marginY,
+      spacingX,
+      spacingY,
+      columns,
+      rows,
+      animations: {},
+    };
     set({
-      tilesets: [...get().tilesets, ...built],
-      activeStamp: { tilesetId: last.id, width: 1, height: 1, tiles: [0] },
+      tilesets: [...get().tilesets, tileset],
+      activeStamp: { tilesetId: tileset.id, width: 1, height: 1, tiles: [0] },
       activeTool: "terrain",
     });
   },
@@ -589,7 +549,6 @@ export const useMapStore = create<MapState>((set, get) => ({
       pendingPlacement: null,
       lastLoadWarnings: result.warnings,
       cloudId: null,
-      docVersion: get().docVersion + 1,
       past: [],
       future: [],
     });
@@ -613,7 +572,6 @@ export const useMapStore = create<MapState>((set, get) => ({
       pendingPlacement: null,
       lastLoadWarnings: [],
       cloudId: null,
-      docVersion: get().docVersion + 1,
       past: [],
       future: [],
     });

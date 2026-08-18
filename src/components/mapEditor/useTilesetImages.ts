@@ -59,16 +59,9 @@ function evictRemoved(validIds: Set<string>) {
   if (changed) emitChange();
 }
 
-/** Tải ảnh tileset THEO YÊU CẦU — không tự tải hết mọi tileset đã import ngay khi mở map (map lưu
- * Cloud có thể có cả chục/trăm tileset từ lúc import cả folder, tải hết 1 lúc là nguyên nhân lag).
- * `activeIds`: tileset nào ĐANG CẦN hiện ngay bây giờ (map đang thật sự dùng trên canvas, hoặc
- * folder trong sidebar đang mở) — chỉ những cái này mới bắt đầu tải; còn lại giữ nguyên "chưa tải"
- * cho tới khi được yêu cầu (mở đúng folder chứa nó). Cache dùng chung nên đã tải ở nơi này (vd canvas)
- * thì nơi khác (vd sidebar) dùng lại ngay, không tải/giải mã lại lần 2. */
-export function useTilesetImages(
-  tilesets: TilesetDef[],
-  activeIds: ReadonlySet<string>
-): { images: Map<string, HTMLImageElement>; isLoading: (id: string) => boolean } {
+/** Cache 1 HTMLImageElement/tileset, dùng chung thật sự giữa mọi nơi gọi hook này (sidebar lẫn
+ * canvas) — 1 ảnh chỉ tải/giải mã đúng 1 lần dù nhiều component cùng cần tới. */
+export function useTilesetImages(tilesets: TilesetDef[]): { images: Map<string, HTMLImageElement>; isLoading: (id: string) => boolean } {
   useSyncExternalStore(subscribe, getVersion, getVersion);
 
   useEffect(() => {
@@ -76,10 +69,8 @@ export function useTilesetImages(
   }, [tilesets]);
 
   useEffect(() => {
-    for (const ts of tilesets) {
-      if (activeIds.has(ts.id)) ensureLoading(ts.id, ts.imageDataUrl);
-    }
-  }, [tilesets, activeIds]);
+    for (const ts of tilesets) ensureLoading(ts.id, ts.imageDataUrl);
+  }, [tilesets]);
 
   const images = new Map<string, HTMLImageElement>();
   for (const ts of tilesets) {
