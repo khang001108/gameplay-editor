@@ -79,12 +79,12 @@ create policy "Users can update own tileset images"
 
 drop policy if exists "Users can delete own tileset images" on storage.objects;
 create policy "Users can delete own tileset images"
-  on storage.objects for delete
+dr  on storage.objects for delete
   using (bucket_id = 'tileset-images' and (storage.foldername(name))[1] = auth.uid()::text);
 
 -- Bucket public nên ai có URL cũng xem được ảnh (cần thiết để <img>/canvas load ảnh lúc mở map đã
 -- Lưu Cloud) — không lộ gì nhạy cảm vì chỉ là ảnh tileset, không phải dữ liệu riêng tư.
-drop policy if exists "Public can view tileset images" on storage.objects;
+op policy if exists "Public can view tileset images" on storage.objects;
 create policy "Public can view tileset images"
   on storage.objects for select
   using (bucket_id = 'tileset-images');

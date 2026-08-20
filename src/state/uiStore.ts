@@ -29,6 +29,11 @@ interface UiState {
   closeDrawers: () => void;
   setSidebarWidth: (width: number) => void;
   setInspectorWidth: (width: number) => void;
+  /** popup "Quản lý Tileset" (danh sách tileset đã import dạng lưới) — mở từ nút trong sidebar
+   * hoặc từ nút "Đổi tileset" trong bảng chọn tile bên phải, nên cần state dùng chung ở đây. */
+  tilesetGalleryOpen: boolean;
+  toggleTilesetGallery: () => void;
+  closeTilesetGallery: () => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -49,4 +54,7 @@ export const useUiStore = create<UiState>((set) => ({
     window.localStorage.setItem(INSPECTOR_WIDTH_KEY, String(next));
     set({ inspectorWidth: next });
   },
+  tilesetGalleryOpen: false,
+  toggleTilesetGallery: () => set((s) => ({ tilesetGalleryOpen: !s.tilesetGalleryOpen })),
+  closeTilesetGallery: () => set({ tilesetGalleryOpen: false }),
 }));

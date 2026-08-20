@@ -885,6 +885,163 @@ select.field-input {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
+
+/* ── Popup "Quản lý Tileset" (thay danh sách dài trong sidebar) ──────────── */
+.tileset-gallery-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 55;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 64px 16px 16px;
+  overflow-y: auto;
+}
+.tileset-gallery {
+  width: min(640px, 100%);
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.tileset-gallery__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tileset-gallery__import {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--bg-panel-raised);
+  border-radius: 8px;
+}
+.tileset-gallery__size-row {
+  display: flex;
+  gap: 14px;
+}
+.tileset-gallery__size-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.tileset-gallery__size-field span {
+  display: flex;
+  justify-content: space-between;
+}
+.tileset-gallery__size-field em {
+  font-style: normal;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.tileset-gallery__size-field input[type="range"] {
+  width: 100%;
+}
+.tileset-gallery__divider {
+  height: 1px;
+  background: var(--border-soft);
+}
+.tileset-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+.tileset-gallery__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+}
+.tileset-gallery__card:hover {
+  border-color: var(--accent-condition);
+}
+.tileset-gallery__preview {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background-color: var(--bg-panel);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  image-rendering: pixelated;
+}
+.tileset-gallery__preview--loading {
+  background-image: none !important;
+  background: linear-gradient(90deg, var(--bg-panel-raised) 25%, var(--bg-panel) 50%, var(--bg-panel-raised) 75%);
+  background-size: 200% 100%;
+  animation: tile-skeleton 1.2s ease-in-out infinite;
+}
+.tileset-gallery__card-name {
+  width: 100%;
+  font-size: 11.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tileset-gallery__card-dims {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+.tileset-gallery__card-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-panel);
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tileset-gallery__card-remove:hover {
+  color: var(--accent-danger);
+}
+
+/* ── Bảng chọn tile bên phải lúc đang vẽ (thay Inspector) ────────────────── */
+.tile-picker__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.tile-picker__header em {
+  font-style: normal;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
 .tile-palette {
   display: grid;
   /* gridTemplateColumns đặt inline theo đúng số cột thật của tileset (xem TerrainPanel.tsx) —

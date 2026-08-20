@@ -1,11 +1,16 @@
 import { MapSidebar } from "./sidebar/MapSidebar";
 import { MapCanvas } from "./canvas/MapCanvas";
 import { MapInspector } from "./inspector/MapInspector";
+import { TilePickerPanel } from "./inspector/TilePickerPanel";
+import { TilesetGalleryPopup } from "./sidebar/TilesetGalleryPopup";
 import { Drawer } from "../layout/Drawer";
 import { useMapStore } from "../../state/mapStore";
 
 export function MapEditorShell() {
   const warnings = useMapStore((s) => s.lastLoadWarnings);
+  // đang vẽ terrain thì panel phải hiện bảng chọn tile thay vì Inspector (đỡ phải nhảy qua sidebar
+  // trái mỗi lần đổi tile) — tool khác thì panel phải trở lại đúng vai trò cũ (sửa thuộc tính).
+  const isPaintingTerrain = useMapStore((s) => s.activeTool === "terrain");
 
   return (
     <>
@@ -22,9 +27,8 @@ export function MapEditorShell() {
           </div>
         )}
       </main>
-      <Drawer side="inspector">
-        <MapInspector />
-      </Drawer>
+      <Drawer side="inspector">{isPaintingTerrain ? <TilePickerPanel /> : <MapInspector />}</Drawer>
+      <TilesetGalleryPopup />
     </>
   );
 }
